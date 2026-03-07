@@ -14,11 +14,13 @@ model Alert {
   eventType          String
   attempts           Int      @default(1)
   
+  // Basic Analysis
   severity           String?
   threatType         String?
   recommendedAction  String?
   status             String   @default("NEW")
   
+  // Advanced AI & CTI Analysis
   cvssScore          String?
   cweId              String?
   mitreTactic        String?

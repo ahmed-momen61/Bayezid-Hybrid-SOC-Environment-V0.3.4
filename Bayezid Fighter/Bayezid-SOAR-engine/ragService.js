@@ -2,7 +2,6 @@ const axios = require('axios');
 
 let localMitreDB = {};
 
-
 async function loadMitreDatabase() {
     console.log("\n[📥] Boot-Time Downloader: Activating...");
     console.log("[📥] Fetching MITRE ATT&CK Enterprise DB into RAM...");
@@ -56,12 +55,10 @@ async function enrichContext(alertDataString) {
         }
     }
 
-
     const cveRegex = /CVE-\d{4}-\d{4,7}/gi;
     const foundCVEs = alertDataString.match(cveRegex);
 
     if (foundCVEs) {
-
         const uniqueCVE = [...new Set(foundCVEs)][0];
         const webIntel = await searchLiveThreat(uniqueCVE);
         contextList.push(webIntel);

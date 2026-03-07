@@ -3,7 +3,6 @@ const { GoogleGenerativeAI } = require('@google/generative-ai');
 const { enrichContext } = require('./ragService');
 require('dotenv').config();
 
-
 const deepSanitize = (obj) => {
     if (typeof obj !== 'object' || obj === null) return;
     for (let key in obj) {
@@ -20,16 +19,18 @@ const deepSanitize = (obj) => {
     return obj;
 };
 
-
 const analyzeWithVertexAI = async(alertData) => {
-    console.log('\n[☁️] Sending Data to Cloud AI (Google Gemini 2.5 Flash)...');
+    console.log('\n[☁️] Sending Data to Cloud AI (Google Gemini 1.5 Flash)...');
 
     try {
         const safeDataString = typeof alertData === 'string' ? alertData : JSON.stringify(alertData);
         const injectedContext = await enrichContext(safeDataString);
 
         const genAI = new GoogleGenerativeAI(process.env.GOOGLE_API_KEY);
-        const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
+        const model = genAI.getGenerativeModel({
+            model: "gemini-2.5-flash",
+            generationConfig: { responseMimeType: "application/json" }
+        });
 
         const systemPrompt = `You are an Elite Cloud-Based Cybersecurity SIEM Correlation Engine.
         
@@ -37,11 +38,17 @@ const analyzeWithVertexAI = async(alertData) => {
         ${injectedContext}
 
         Analyze the security data using the provided threat intelligence context.
-        You MUST respond ONLY with a valid JSON object matching this exact format, with NO markdown formatting, NO \`\`\`json tags, and NO extra text:
+        You MUST respond ONLY with a valid JSON object matching this exact format:
         {
             "is_false_positive": false,
             "confidence_score": "e.g., 99%",
             "extracted_ip": "Primary source IP",
+            "extracted_iocs": {
+                "ips": ["All malicious IPs found"],
+                "hashes": ["Any MD5/SHA-1/SHA-256 hashes found"],
+                "domains": ["Any malicious domains or URLs found"]
+            },
+            "related_cves": ["Any mentioned or implied CVEs, e.g., 'CVE-2023-1234'. Empty array if none."],
             "severity": "CRITICAL, HIGH, MEDIUM, LOW",
             "threat_type": "The correlated attack name",
             "cvss_score": "Estimated CVSS v3.1 base score (e.g., '9.8')",
@@ -55,16 +62,14 @@ const analyzeWithVertexAI = async(alertData) => {
         }`;
 
         const result = await model.generateContent(`${systemPrompt}\n\nAnalyze this data: ${safeDataString}`);
-        let text = result.response.text();
+        const text = result.response.text();
 
-        text = text.replace(/```json/gi, '').replace(/```/gi, '').trim();
         let aiResponse = JSON.parse(text);
-
         aiResponse = deepSanitize(aiResponse);
 
         return {
             ...aiResponse,
-            engine_used: 'Google Gemini 2.5 Flash + Hybrid RAG (Cloud ☁️)'
+            engine_used: 'Google Gemini 1.5 Flash + Hybrid RAG (Cloud ☁️)'
         };
 
     } catch (error) {
@@ -77,7 +82,6 @@ const analyzeWithVertexAI = async(alertData) => {
         };
     }
 };
-
 
 const analyzeWithLocalModel = async(alertData) => {
     console.log('\n[🏠] Initiating High-Speed Local Architecture (Powered by Qwen 2.5)...');
@@ -93,6 +97,7 @@ const analyzeWithLocalModel = async(alertData) => {
         Task: Extract a detailed list of:
         - All IP addresses and ports.
         - Specific vulnerabilities (CVEs) and their exact nature.
+        - File Hashes (MD5, SHA256) and Malicious Domains/URLs.
         - Specific processes, binaries, and privileges mentioned (e.g., SeDebugPrivilege).
         Be highly technical and precise.`;
 
@@ -116,14 +121,21 @@ const analyzeWithLocalModel = async(alertData) => {
         [STRICT ANALYSIS FRAMEWORK]:
         1. Deep Narrative: Write a comprehensive, multi-sentence story in 'detailed_report' explaining HOW the attack happened using the artifacts.
         2. Strict JSON Formatting: Your 'cvss_score' MUST be exactly a string like "9.8". NO extra characters.
-        3. Strategic Action: Provide EXACTLY 6 to 8 numbered steps in 'recommended_action' as a single string, NOT an array. 
-        4. Accuracy: Use the provided Threat Intel for CWE and MITRE IDs.
+        3. Extract IoCs: Accurately populate the 'extracted_iocs' and 'related_cves' arrays based on the detective's artifacts.
+        4. Strategic Action: Provide EXACTLY 6 to 8 numbered steps in 'recommended_action' as a single string, NOT an array. 
+        5. Accuracy: Use the provided Threat Intel for CWE and MITRE IDs.
 
         You MUST respond ONLY with a valid JSON object matching this exact format, NO markdown:
         {
             "is_false_positive": false,
             "confidence_score": "99%",
             "extracted_ip": "IP address",
+            "extracted_iocs": {
+                "ips": ["..."],
+                "hashes": ["..."],
+                "domains": ["..."]
+            },
+            "related_cves": ["CVE-XXXX-XXXX"],
             "severity": "CRITICAL, HIGH, MEDIUM, LOW",
             "threat_type": "Descriptive attack name",
             "cvss_score": "9.8",
@@ -152,7 +164,7 @@ const analyzeWithLocalModel = async(alertData) => {
 
         return {
             ...finalReport,
-            engine_used: `High-Speed Local (Qwen 2.5 Multi-Role) + Hybrid RAG ⚡🏠`
+            engine_used: 'High-Speed Local (Qwen 2.5 Multi-Role) + Hybrid RAG ⚡🏠'
         };
 
     } catch (error) {

@@ -8,6 +8,7 @@ const { executePlaybook } = require('./playbookService');
 const { enrichWithOSINT } = require('./osintService');
 const { sendTelegramAlert } = require('./notificationService');
 const { loadMitreDatabase } = require('./ragService');
+const { enrichWithCTI } = require('./ctiService');
 
 dotenv.config();
 
@@ -136,6 +137,11 @@ const handleSecurityAlert = async(req, res) => {
             osintData = await enrichWithOSINT(aiResponse.extracted_ip);
         }
 
+        let ctiData = null;
+        if (aiResponse.extracted_iocs || (aiResponse.related_cves && aiResponse.related_cves.length > 0)) {
+            ctiData = await enrichWithCTI(aiResponse.extracted_iocs, aiResponse.related_cves);
+        }
+
         const updatedAlert = await prisma.alert.update({
             where: { id: savedAlert.id },
             data: {
@@ -150,11 +156,14 @@ const handleSecurityAlert = async(req, res) => {
                 killChainPhase: aiResponse.kill_chain_phase,
                 predictedSteps: aiResponse.predicted_next_steps,
                 businessContinuity: aiResponse.business_continuity_analysis,
-                osintData: osintData,
+                osintData: {
+                    osint: osintData,
+                    cti: ctiData
+                },
                 status: aiResponse.is_false_positive ? "FALSE_POSITIVE" : "ANALYZED"
             }
         });
-        console.log(`[✔] Cognitive Analysis Saved: ${aiResponse.threat_type}`);
+        console.log(`[✔] Cognitive Analysis & CTI Saved: ${aiResponse.threat_type}`);
 
         let playbookResult = null;
         if (!aiResponse.is_false_positive && (aiResponse.severity === 'HIGH' || aiResponse.severity === 'CRITICAL')) {
@@ -171,6 +180,7 @@ const handleSecurityAlert = async(req, res) => {
             confidence: aiResponse.confidence_score,
             analysis: aiResponse,
             osint: osintData,
+            cti: ctiData,
             playbook_executed: !!playbookResult,
             playbook_details: playbookResult
         });
@@ -243,12 +253,13 @@ const server = app.listen(PORT, async() => {
     console.log(`=================================`);
     console.log(`[+] Bayezid Cognitive SOAR V2 LIVE`);
     console.log(`[+] Dual-Engine Ready (Local/Cloud) 🔀`);
+    console.log(`[+] Global Threat Intel (CTI): ENABLED 🌍`);
     console.log(`[+] High Availability (Auto-Failover) Active 🛡️`);
     console.log(`[+] Mobile SOC (Telegram): CONNECTED 📱`);
     console.log(`[+] Web Dashboard Running on http://localhost:${PORT} 🖥️`);
     console.log(`=================================`);
 
-    await loadMitreDatabase();
+    if (typeof loadMitreDatabase === 'function') await loadMitreDatabase();
 });
 
 server.on('error', (error) => {
