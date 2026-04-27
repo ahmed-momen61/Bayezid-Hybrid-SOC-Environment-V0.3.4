@@ -73,7 +73,7 @@ When toggled to **RED MODE**, Bayezid activates a proactive offensive squad:
 
 ---
 
-## 🛠️ Resilience & Self-Healing
+## Resilience & Self-Healing
 
 Bayezid is built to thrive in "broken" or unstable environments:
 
@@ -85,7 +85,7 @@ Bayezid is built to thrive in "broken" or unstable environments:
 
 ---
 
-## 🚦 Getting Started
+## Getting Started
 
 ### Prerequisites
 * **Node.js:** v20.x or higher.
@@ -112,7 +112,7 @@ node server.js
 
 ---
 
-## 📱 Environment Variables (.env)
+## Environment Variables (.env)
 ```env
 # Infrastructure
 DATABASE_URL="postgresql://user:pass@host:6543/postgres?pgvector=true"
