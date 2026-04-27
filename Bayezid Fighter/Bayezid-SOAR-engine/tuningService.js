@@ -1,7 +1,7 @@
 const { GoogleGenerativeAI } = require('@google/generative-ai');
-const { PrismaClient } = require('@prisma/client'); // 🆕 إضافة بريزما
+const { PrismaClient } = require('@prisma/client');
 const axios = require('axios');
-const prisma = new PrismaClient(); // 🆕 تعريف البريزما
+const prisma = new PrismaClient();
 
 require('dotenv').config();
 
@@ -18,7 +18,7 @@ const processTuningCommand = async(userCommand, userRole) => {
     console.log(`\n[🧠] Tuning Request received from: ${userRole}`);
 
     if (userRole !== 'SOC_MANAGER') {
-        return { action: "REJECTED", reply: "عذراً يا هندسة، الصلاحية دي للمدير فقط." };
+        return { action: "REJECTED", reply: "ma3lsh ya handasa da sho8l elqyadh el3ozmh bs" };
     }
 
     const tuningPrompt = `You are the 'System Developer Agent' for Bayezid SOAR. 
@@ -39,7 +39,7 @@ const processTuningCommand = async(userCommand, userRole) => {
         const response = await model.generateContent(tuningPrompt);
         const plan = JSON.parse(response.response.text());
 
-        return await executePlan(plan); // 🆕 أضفنا await
+        return await executePlan(plan);
 
     } catch (cloudError) {
         console.warn(`\n[⚠️] Cloud Tuning Failed (Quota/Network). Switching to Local AI...`);
@@ -53,16 +53,15 @@ const processTuningCommand = async(userCommand, userRole) => {
             });
 
             const plan = JSON.parse(localResponse.data.response);
-            return await executePlan(plan); // 🆕 أضفنا await
+            return await executePlan(plan);
 
         } catch (localError) {
             console.error(`[❌] Total System Blindness: Both AI engines failed.`);
-            return { action: "ERROR", reply: "السيستم مش قادر يوصل لأي ذكاء اصطناعي حالياً." };
+            return { action: "ERROR", reply: "The system is currently unable to achieve any artificial intelligence." };
         }
     }
 };
 
-// 🆕 تعديل الدالة لتكون async وتحفظ في الداتا بيز
 const executePlan = async(plan) => {
     if (plan.action === "UPDATE_CONFIG") {
         liveConfig[plan.target] = Number(plan.value) || plan.value;
@@ -70,7 +69,6 @@ const executePlan = async(plan) => {
         liveConfig.FEATURES[plan.target] = plan.value;
     }
 
-    // 💾 الحفظ في الداتا بيز (Persistence)
     try {
         await prisma.systemConfig.upsert({
             where: { key: plan.target },

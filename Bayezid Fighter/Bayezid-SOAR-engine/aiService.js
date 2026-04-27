@@ -187,9 +187,6 @@ const analyzeWithLocalModel = async(alertData) => {
     }
 };
 
-// ==========================================
-// Project RedSwarm: The Brain (Orchestrator)
-// ==========================================
 const orchestrateRedSwarm = async(targetInfo, currentState) => {
     console.log(`\n[🧠] Waking up The Brain (RedSwarm Orchestrator) for Target: ${targetInfo}...`);
 
@@ -229,12 +226,9 @@ const orchestrateRedSwarm = async(targetInfo, currentState) => {
     }
 };
 
-// ==========================================
-// Project RedSwarm: Universal AI Wrapper (Cloud with Local Fallback)
-// ==========================================
 const askRedSwarmAI = async(prompt, requireJson = true) => {
     try {
-        // 1. First Attempt: Google Gemini (Cloud)
+
         const genAI = new GoogleGenerativeAI(process.env.GOOGLE_API_KEY);
         const model = genAI.getGenerativeModel({
             model: "gemini-2.5-flash",
@@ -250,13 +244,12 @@ const askRedSwarmAI = async(prompt, requireJson = true) => {
         console.log(`[🔄] Initiating Fallback to Local AI (Ollama/Qwen)...`);
 
         try {
-            // 2. Fallback Attempt: Local AI (Ollama)
-            // Ensure we send to Ollama and request JSON if required
+
             const localResponse = await axios.post('http://localhost:11434/api/generate', {
-                model: process.env.LOCAL_MODEL_NAME || "qwen2.5-coder:7b", // Can pull model name from .env or use qwen as default
+                model: process.env.LOCAL_MODEL_NAME || "qwen2.5-coder:7b",
                 prompt: prompt + (requireJson ? "\n\nCRITICAL: You MUST return ONLY valid JSON formatting." : ""),
                 stream: false,
-                format: requireJson ? "json" : "" // Ollama feature that forces JSON output
+                format: requireJson ? "json" : ""
             });
 
             const text = localResponse.data.response;
@@ -269,9 +262,6 @@ const askRedSwarmAI = async(prompt, requireJson = true) => {
     }
 };
 
-// ==========================================
-// Project RedSwarm: Scout Agent (Recon)
-// ==========================================
 const runScoutAgent = async(targetInfo, customInstructions = "") => {
     console.log(`\n[👁️] Waking up Scout (Recon Agent) for Target: ${targetInfo}...`);
 
@@ -294,7 +284,7 @@ const runScoutAgent = async(targetInfo, customInstructions = "") => {
             ]
         }`;
 
-        // Use the central function (middleware)
+
         const aiDecision = await askRedSwarmAI(scoutPrompt, true);
 
         console.log(`[🤖] Scout decided the best command is: ${aiDecision.best_command}`);
@@ -310,7 +300,7 @@ const runScoutAgent = async(targetInfo, customInstructions = "") => {
             scanOutput = `Execution Error: ${execError.message}\nMake sure Nmap is installed and added to system PATH.`;
         }
 
-        // --- Log activity to database ---
+
         await prisma.redSwarmLog.create({
             data: {
                 targetIp: targetInfo,
@@ -337,9 +327,6 @@ const runScoutAgent = async(targetInfo, customInstructions = "") => {
     }
 };
 
-// ==========================================
-// Project RedSwarm: Breacher Agent (Exploitation)
-// ==========================================
 const runBreacherAgent = async(targetInfo, scanResults, customInstructions = "") => {
     console.log(`\n[⚔️] Waking up Breacher (Initial Access Agent) for Target: ${targetInfo}...`);
 
@@ -366,13 +353,13 @@ const runBreacherAgent = async(targetInfo, scanResults, customInstructions = "")
             ]
         }`;
 
-        // Use the central function
+
         const aiDecision = await askRedSwarmAI(breacherPrompt, true);
 
         console.log(`[🎯] Breacher identified primary vector: ${aiDecision.primary_attack_vector}`);
         console.log(`[🔥] Recommended Command: ${aiDecision.best_command}`);
 
-        // --- Log activity to database ---
+
         await prisma.redSwarmLog.create({
             data: {
                 targetIp: targetInfo,
@@ -397,9 +384,6 @@ const runBreacherAgent = async(targetInfo, scanResults, customInstructions = "")
     }
 };
 
-// ==========================================
-// Project RedSwarm: Phantom Agent (Escalation & Persistence)
-// ==========================================
 const runPhantomAgent = async(targetInfo, shellContext, customInstructions = "") => {
     console.log(`\n[👻] Waking up Phantom (Escalation Agent) for Target: ${targetInfo}...`);
 
@@ -426,13 +410,13 @@ const runPhantomAgent = async(targetInfo, shellContext, customInstructions = "")
             ]
         }`;
 
-        // Use the central function
+
         const aiDecision = await askRedSwarmAI(phantomPrompt, true);
 
         console.log(`[👻] Phantom suggests technique: ${aiDecision.primary_escalation_vector}`);
         console.log(`[🔑] Payload: ${aiDecision.best_command}`);
 
-        // --- Log activity to database ---
+
         await prisma.redSwarmLog.create({
             data: {
                 targetIp: targetInfo,
@@ -457,9 +441,6 @@ const runPhantomAgent = async(targetInfo, shellContext, customInstructions = "")
     }
 };
 
-// ==========================================
-// Project RedSwarm: Chameleon Agent (Evasion & Tuning)
-// ==========================================
 const runChameleonAgent = async(targetInfo, failedPayload, wafContext, customInstructions = "") => {
     console.log(`\n[🦎] Waking up Chameleon (Tuning Agent) to bypass filters on Target: ${targetInfo}...`);
 
@@ -485,13 +466,13 @@ const runChameleonAgent = async(targetInfo, failedPayload, wafContext, customIns
             ]
         }`;
 
-        // Use the central function
+
         const aiDecision = await askRedSwarmAI(chameleonPrompt, true);
 
         console.log(`[🦎] Chameleon applied technique: ${aiDecision.obfuscation_technique}`);
         console.log(`[✨] Tuned Payload: ${aiDecision.tuned_payload}`);
 
-        // --- Log activity to database ---
+
         await prisma.redSwarmLog.create({
             data: {
                 targetIp: targetInfo,
@@ -516,14 +497,11 @@ const runChameleonAgent = async(targetInfo, failedPayload, wafContext, customIns
     }
 };
 
-// ==========================================
-// Project RedSwarm: Autonomous Overlord (The Mastermind)
-// ==========================================
 const runOverlordAgent = async(targetInfo) => {
     console.log(`\n[👑] The Overlord is reviewing the database logs for Target: ${targetInfo}...`);
 
     try {
-        // 1. Fetch all history from database
+
         const logs = await prisma.redSwarmLog.findMany({
             where: { targetIp: targetInfo },
             orderBy: { createdAt: 'asc' }
@@ -533,7 +511,7 @@ const runOverlordAgent = async(targetInfo) => {
             `[${l.agentName}] Task: ${l.assignedTask} | Command: ${l.executedCommand} | Success: ${l.isSuccess} | Output: ${l.executionOutput}`
         ).join('\n\n');
 
-        // The aggressive prompt to reach the deepest point
+
         const overlordPrompt = `You are 'The Overlord', the supreme Autonomous APT Commander of Project RedSwarm.
         Target: ${targetInfo}
         
@@ -555,7 +533,7 @@ const runOverlordAgent = async(targetInfo) => {
             "detailed_instructions": "Exact, aggressive instructions for the next agent based on the database logs"
         }`;
 
-        // Use the central function directly as it returns parsed JSON
+
         return await askRedSwarmAI(overlordPrompt, true);
 
     } catch (error) {
@@ -564,9 +542,6 @@ const runOverlordAgent = async(targetInfo) => {
     }
 };
 
-// ==========================================
-// Project RedSwarm: Scribe Agent (The Ultimate Reporter)
-// ==========================================
 const runScribeAgent = async(targetInfo) => {
     console.log(`\n[📝] Scribe is pulling all data from the Database to generate the final report...`);
 
@@ -594,7 +569,7 @@ const runScribeAgent = async(targetInfo) => {
         
         Format strictly in Professional Markdown.`;
 
-        // Send false because here we don't need JSON, we want a regular Markdown Report
+
         return await askRedSwarmAI(scribePrompt, false);
 
     } catch (error) {
@@ -603,9 +578,6 @@ const runScribeAgent = async(targetInfo) => {
     }
 };
 
-// ==========================================
-// 🛡️ SOC WAR ROOM: Action Agent (Execution)
-// ==========================================
 const runActionAgent = async(alertContext, userCommand) => {
     console.log(`\n[🤖] Bayezid-Action summoned! Analyzing command: ${userCommand}`);
 
@@ -628,7 +600,7 @@ const runActionAgent = async(alertContext, userCommand) => {
             "agent_reply": "Your message to the chat confirming the action (e.g., 'Roger that. Blocking IP 192.168.1.5 now...')"
         }`;
 
-        // استخدمنا الدالة بتاعتك اللي فيها Fallback للكلاود واللوكال
+
         const decision = await askRedSwarmAI(actionPrompt, true);
         return decision;
 

@@ -10,6 +10,7 @@ const { enrichWithOSINT } = require('./osintService');
 const { sendTelegramAlert } = require('./notificationService');
 const { loadMitreDatabase } = require('./ragService');
 const { enrichWithCTI } = require('./ctiService');
+const { findSimilarIncidents, saveIncidentToMemory } = require('./memoryService');
 
 
 
@@ -68,13 +69,12 @@ const handleSecurityAlert = async(req, res) => {
     }
 
     try {
-        // 2. Enhanced Semantic Caching & Deduplication (منع التكرار)
         if (isJson && source_ip !== "Extracting...") {
-            const timeLimit = new Date(Date.now() - 60 * 60 * 1000); // خلال آخر ساعة
+            const timeLimit = new Date(Date.now() - 60 * 60 * 1000);
 
             const existingAlert = await prisma.alert.findFirst({
                 where: {
-                    sourceIp: source_ip, // لو نفس الـ IP
+                    sourceIp: source_ip,
                     createdAt: { gte: timeLimit }
                 },
                 orderBy: { createdAt: 'desc' }
@@ -84,7 +84,6 @@ const handleSecurityAlert = async(req, res) => {
                 console.log(`\n[♻️] CACHE HIT: Attack from ${source_ip} is already tracked! (Alert ID: ${existingAlert.id})`);
                 console.log(`[!] Current Status: ${existingAlert.status}. Skipping AI Analysis & Playbooks.`);
 
-                // نزود عداد المحاولات فقط في الداتا بيز
                 await prisma.alert.update({
                     where: { id: existingAlert.id },
                     data: { attempts: (existingAlert.attempts || 1) + 1 }
@@ -101,6 +100,37 @@ const handleSecurityAlert = async(req, res) => {
                     },
                     playbook_executed: false,
                     playbook_details: "Skipped (Duplicate Activity)"
+                });
+            }
+        }
+
+
+        if (isJson) {
+            const logsToEmbed = typeof rawData === 'string' ? rawData : JSON.stringify(rawData);
+            const pastIncident = await findSimilarIncidents(logsToEmbed);
+
+            if (pastIncident) {
+                console.log(`\n[♻️] MEMORY HIT: Similar attack found! Match: ${(pastIncident.similarity * 100).toFixed(1)}%`);
+                console.log(`[♻️] Past Incident ID: ${pastIncident.id} | Threat: ${pastIncident.threatType}`);
+
+                const vectorAlert = await prisma.alert.create({
+                    data: {
+                        sourceIp: source_ip,
+                        targetServer: target_server,
+                        eventType: event_type,
+                        status: "RESOLVED_BY_MEMORY",
+                        threatType: pastIncident.threatType
+                    }
+                });
+
+                return res.status(200).json({
+                    status: 'success',
+                    cached: true,
+                    message: "Similar threat identified in institutional memory.",
+                    similarity_score: `${(pastIncident.similarity * 100).toFixed(1)}%`,
+                    historical_reference: pastIncident.id,
+                    action_taken: "Applied historical playbook implicitly.",
+                    alert_id: vectorAlert.id
                 });
             }
         }
@@ -151,10 +181,9 @@ const handleSecurityAlert = async(req, res) => {
         if (aiResponse.is_false_positive) {
             alertStatus = "FALSE_POSITIVE";
         } else if (aiResponse.confidence_type === 'PROBABILISTIC') {
-            alertStatus = "WAITING_FOR_APPROVAL"; // 🔴 هنا بنوقف التنفيذ ونبعتها للمراجعة
+            alertStatus = "WAITING_FOR_APPROVAL";
         }
 
-        // 2. تحديث الداتا بيز بالحالة الجديدة ونوع الثقة
         const updatedAlert = await prisma.alert.update({
             where: { id: savedAlert.id },
             data: {
@@ -162,7 +191,7 @@ const handleSecurityAlert = async(req, res) => {
                 severity: aiResponse.severity,
                 threatType: aiResponse.threat_type,
                 recommendedAction: aiResponse.recommended_action,
-                confidenceType: aiResponse.confidence_type || "PROBABILISTIC", // حفظ نوع الثقة
+                confidenceType: aiResponse.confidence_type || "PROBABILISTIC",
                 cvssScore: aiResponse.cvss_score,
                 cweId: aiResponse.cwe_id,
                 mitreTactic: aiResponse.mitre_attack ? aiResponse.mitre_attack.tactic : null,
@@ -179,10 +208,8 @@ const handleSecurityAlert = async(req, res) => {
         });
         console.log(`[✔] Cognitive Analysis Saved. Status: ${alertStatus} | Type: ${aiResponse.confidence_type}`);
 
-        // 3. قرار تنفيذ الـ Playbook (Execution Engine)
         let playbookResult = null;
 
-        // 🔴 الشرط الجديد: لازم ميكونش False Positive، ويكون Severity عالي، ويكون DETERMINISTIC (مؤكد)
         const shouldExecutePlaybook = !aiResponse.is_false_positive &&
             (aiResponse.severity === 'HIGH' || aiResponse.severity === 'CRITICAL') &&
             (aiResponse.confidence_type === 'DETERMINISTIC');
@@ -199,12 +226,15 @@ const handleSecurityAlert = async(req, res) => {
             }
         }
 
+        const logsToSave = isJson ? (typeof rawData === 'string' ? rawData : JSON.stringify(rawData)) : rawData;
+        await saveIncidentToMemory(updatedAlert.id, logsToSave);
+
         return res.status(200).json({
             status: 'success',
             cached: false,
             is_false_positive: aiResponse.is_false_positive,
             confidence: aiResponse.confidence_score,
-            alert_status: alertStatus, // ضفنا دي عشان نشوفها في البوستمان
+            alert_status: alertStatus,
             analysis: aiResponse,
             osint: osintData,
             cti: ctiData,
@@ -220,11 +250,8 @@ const handleSecurityAlert = async(req, res) => {
 
 app.post('/api/v1/alerts/ingest', handleSecurityAlert);
 
-// ==========================================
-// 💬 DIGITAL WAR ROOM (CHAT API)
-// ==========================================
 
-// 1. جلب رسايل الشات الخاصة بـ Alert معين
+
 app.get('/api/v1/alerts/:id/chat', async(req, res) => {
     try {
         const chats = await prisma.incidentChat.findMany({
@@ -237,8 +264,6 @@ app.get('/api/v1/alerts/:id/chat', async(req, res) => {
     }
 });
 
-// 2. إرسال رسالة جديدة لغرفة العمليات
-// 2. إرسال رسالة جديدة لغرفة العمليات (وتشغيل الذكاء الاصطناعي لو اتعمله منشن)
 app.post('/api/v1/alerts/:id/chat', async(req, res) => {
     const { sender, message } = req.body;
     const alertId = req.params.id;
@@ -248,24 +273,19 @@ app.post('/api/v1/alerts/:id/chat', async(req, res) => {
     }
 
     try {
-        // 1. حفظ رسالة اليوزر في الداتا بيز
         const newChat = await prisma.incidentChat.create({
             data: { alertId, sender, message }
         });
         console.log(`[💬] New message in War Room ${alertId} from ${sender}: ${message}`);
 
-        // 🤖 2. التحقق: هل اليوزر بينادي على بيازيد؟
         if (message.includes('@Bayezid-Action') || message.includes('@bayezid')) {
 
-            // نجيب تفاصيل التنبيه من الداتا بيز عشان الـ AI يفهم السياق
             const alertData = await prisma.alert.findUnique({ where: { id: alertId } });
 
-            // نصحي بيازيد ونبعتله الأمر
             const aiService = require('./aiService'); // استدعاء لحظي (Dynamic Require) لتجنب اللغبطة
             const aiDecision = await aiService.runActionAgent(alertData, message);
 
             if (aiDecision) {
-                // 3. بيازيد يرد في الشات
                 await prisma.incidentChat.create({
                     data: {
                         alertId,
@@ -274,7 +294,6 @@ app.post('/api/v1/alerts/:id/chat', async(req, res) => {
                     }
                 });
 
-                // 4. تنفيذ الأكشن الفعلي (ضرب الـ Playbook بالنار)
                 const mockAiResponseForPlaybook = {
                     severity: alertData.severity,
                     threat_type: alertData.threatType,
@@ -284,7 +303,6 @@ app.post('/api/v1/alerts/:id/chat', async(req, res) => {
 
                 await executePlaybook(alertId, mockAiResponseForPlaybook, { source_ip: mockAiResponseForPlaybook.extracted_ip });
 
-                // تحديث حالة الأليرت إنه اتعمله استجابة
                 await prisma.alert.update({
                     where: { id: alertId },
                     data: { status: 'RESOLVED_BY_WAR_ROOM' }
@@ -351,9 +369,7 @@ const handleSimulationRun = async(req, res) => {
 };
 
 app.post('/api/v1/simulation/run', handleSimulationRun);
-// ==========================================
-// REDSWARM OFFENSIVE API ROUTE
-// ==========================================
+
 app.post('/api/v1/redswarm/engage', async(req, res) => {
     const { targetInfo, currentState } = req.body;
 
@@ -382,9 +398,7 @@ app.post('/api/v1/redswarm/engage', async(req, res) => {
     }
 });
 
-// ==========================================
-// REDSWARM: SCOUT AGENT API
-// ==========================================
+
 app.post('/api/v1/redswarm/scout', async(req, res) => {
     const { targetInfo, customInstructions } = req.body;
 
@@ -413,9 +427,7 @@ app.post('/api/v1/redswarm/scout', async(req, res) => {
     }
 });
 
-// ==========================================
-// REDSWARM: BREACHER AGENT API
-// ==========================================
+
 app.post('/api/v1/redswarm/breach', async(req, res) => {
     const { targetInfo, scanResults, customInstructions } = req.body;
 
@@ -443,9 +455,7 @@ app.post('/api/v1/redswarm/breach', async(req, res) => {
     }
 });
 
-// ==========================================
-// REDSWARM: PHANTOM AGENT API
-// ==========================================
+
 app.post('/api/v1/redswarm/phantom', async(req, res) => {
     const { targetInfo, shellContext, customInstructions } = req.body;
 
@@ -473,9 +483,7 @@ app.post('/api/v1/redswarm/phantom', async(req, res) => {
     }
 });
 
-// ==========================================
-// REDSWARM: CHAMELEON AGENT API
-// ==========================================
+
 app.post('/api/v1/redswarm/chameleon', async(req, res) => {
     const { targetInfo, failedPayload, wafContext, customInstructions } = req.body;
 
@@ -503,9 +511,7 @@ app.post('/api/v1/redswarm/chameleon', async(req, res) => {
     }
 });
 
-// ==========================================
-// REDSWARM: OVERLORD & SCRIBE APIs
-// ==========================================
+
 app.post('/api/v1/redswarm/overlord', async(req, res) => {
     const { targetInfo, allAgentsData } = req.body;
     if (!targetInfo || !allAgentsData) return res.status(400).json({ error: 'Missing data' });
@@ -534,9 +540,7 @@ app.post('/api/v1/redswarm/scribe', async(req, res) => {
     }
 });
 
-// ==========================================
-// REDSWARM: THE AUTONOMOUS HEART 🦅
-// ==========================================
+
 app.post('/api/v1/redswarm/auto-pilot', async(req, res) => {
     const { targetInfo } = req.body;
     if (!targetInfo) return res.status(400).json({ error: 'Target IP is required' });
@@ -549,7 +553,6 @@ app.post('/api/v1/redswarm/auto-pilot', async(req, res) => {
         let campaignActive = true;
         let lastScanResults = "";
 
-        // --- 🛡️ Protection Limit: Max iterations ---
         let iterations = 0;
         const MAX_ITERATIONS = 12;
 
@@ -557,7 +560,6 @@ app.post('/api/v1/redswarm/auto-pilot', async(req, res) => {
             iterations++;
             console.log(`\n--- ⏳ Autonomous Loop Iteration: ${iterations}/${MAX_ITERATIONS} ---`);
 
-            // 1. The Maestro analyzes the database and decides the next step
             const decision = await runOverlordAgent(targetInfo);
 
             if (!decision || decision.is_operation_complete) {
@@ -569,10 +571,8 @@ app.post('/api/v1/redswarm/auto-pilot', async(req, res) => {
 
             console.log(`[👑] Overlord Order: Activate [${decision.next_agent}]`);
 
-            // 2. Execute orders and update database
             if (decision.next_agent === 'Scout') {
                 const scoutData = await runScoutAgent(targetInfo, decision.detailed_instructions);
-                // --- 🛡️ Protection: Verify agent didn't fail before fetching data ---
                 if (scoutData) lastScanResults = scoutData.scan_results;
 
             } else if (decision.next_agent === 'Breacher') {
@@ -585,11 +585,9 @@ app.post('/api/v1/redswarm/auto-pilot', async(req, res) => {
                 await runChameleonAgent(targetInfo, "Failed payloads in DB", "WAF Bypass needed", decision.detailed_instructions);
             }
 
-            // Brief wait to prevent API spam
             await new Promise(r => setTimeout(r, 5000));
         }
 
-        // --- 🛡️ If loop reached max limit without completing, force report with current data ---
         if (iterations >= MAX_ITERATIONS) {
             console.log(`\n[⚠️] OVERLORD REACHED MAX ITERATIONS (${MAX_ITERATIONS}). Forcing operation halt and reporting.`);
             await runScribeAgent(targetInfo);
@@ -597,19 +595,12 @@ app.post('/api/v1/redswarm/auto-pilot', async(req, res) => {
     })();
 });
 
-// ==========================================
-// ⏱️ ESCALATION WATCHER (Timeout Auto-Kill)
-// ==========================================
-//const ESCALATION_TIMEOUT_MINUTES = 1; // الوقت المسموح للتيم قبل التدخل الآلي
 
 const startEscalationWatcher = () => {
-    // هيشتغل كل 60 ثانية (دقيقة) يشيك على الداتا بيز
     setInterval(async() => {
         try {
-            // جوه الـ setInterval:
             const timeLimit = new Date(Date.now() - (liveConfig.SLA_TIMEOUT_MINUTES * 60 * 1000));
 
-            // هنجيب كل التنبيهات اللي مستنية موافقة وعدى عليها 10 دقايق
             const expiredAlerts = await prisma.alert.findMany({
                 where: {
                     status: 'WAITING_FOR_APPROVAL',
@@ -621,13 +612,11 @@ const startEscalationWatcher = () => {
                 console.log(`\n[⏰] SLA TIMEOUT: Alert ${alert.id} exceeded ${liveConfig.SLA_TIMEOUT_MINUTES} mins!`);
                 console.log(`[🤖] Bayezid taking over. Auto-Escalating threat: ${alert.threatType}`);
 
-                // 1. نغير الحالة عشان مننفذوش تاني
                 await prisma.alert.update({
                     where: { id: alert.id },
                     data: { status: 'AUTO_ESCALATED' }
                 });
 
-                // 2. نبني كبسولة الداتا عشان نبعتها لملف الـ Playbook
                 const mockAiResponse = {
                     severity: alert.severity,
                     threat_type: alert.threatType,
@@ -635,10 +624,8 @@ const startEscalationWatcher = () => {
                     recommended_action: alert.recommendedAction || "Auto-Isolated due to timeout SLA."
                 };
 
-                // 3. نضرب الـ Playbook بالنار
                 await executePlaybook(alert.id, mockAiResponse, { source_ip: alert.sourceIp });
 
-                // (اختياري) ممكن تبعت رسالة تليجرام هنا تقول إن السيستم اتصرف لوحده
                 console.log(`[✔] Auto-Escalation Complete for IP: ${alert.sourceIp}`);
             }
         } catch (error) {
@@ -647,9 +634,7 @@ const startEscalationWatcher = () => {
     }, 60 * 1000); // 1 minute interval
 };
 
-// ==========================================
-// 🧠 LIVE SYSTEM TUNING (SOC MANAGER ONLY)
-// ==========================================
+
 app.post('/api/v1/system/tune', async(req, res) => {
     const { command, role } = req.body;
 
@@ -675,7 +660,6 @@ const loadConfigsFromDB = async() => {
             if (cfg.key === 'SLA_TIMEOUT_MINUTES') {
                 liveConfig.SLA_TIMEOUT_MINUTES = Number(cfg.value);
             }
-            // لو زودت فيتشرز تانية مستقبلاً ضيفها هنا
         });
         console.log(`[📥] Persistent configurations loaded from Database.`);
     } catch (err) {
@@ -683,12 +667,9 @@ const loadConfigsFromDB = async() => {
     }
 };
 
-// ==========================================
-// BAYEZID STARTUP SEQUENCE & MODE SELECTION
-// ==========================================
-const startBayezidServer = () => {
-    const server = app.listen(PORT, async() => {
 
+const startBayezidServer = () => {
+    const server = httpServer.listen(PORT, async() => {
         await loadConfigsFromDB();
 
         console.log(`\n=================================`);
@@ -710,7 +691,6 @@ const startBayezidServer = () => {
             await loadMitreDatabase();
         }
         startEscalationWatcher();
-        // ✅ السطر الجديد:
         console.log(`[⏱️] SLA Escalation Watcher Active (${liveConfig.SLA_TIMEOUT_MINUTES} min timeout)`);
     });
 

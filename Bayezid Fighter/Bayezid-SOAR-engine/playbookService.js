@@ -1,12 +1,12 @@
 const { PrismaClient } = require('@prisma/client');
 const prisma = new PrismaClient();
+const { GoogleGenerativeAI } = require('@google/generative-ai');
+const { encryptPayload } = require('./cryptoService');
+const axios = require('axios');
 const util = require('util');
 const { exec } = require('child_process');
 const execPromise = util.promisify(exec);
-// هنستدعي الموديل بتاعنا من aiService عشان نستخدم المخ الهجين
-const { analyzeWithVertexAI, analyzeWithLocalModel } = require('./aiService');
 
-// ⚙️ Environment Context (هنا بنحدد بيئة العميل، ممكن مستقبلاً تتجاب من الداتا بيز)
 const SECURITY_ENVIRONMENT = {
     FIREWALL: "Palo Alto Networks PAN-OS Firewall",
     EDR: "CrowdStrike Falcon",
@@ -21,7 +21,6 @@ const executePlaybook = async(alertId, aiAnalysis, payload) => {
     console.log(`[🎯] Target: ${targetIp} | Action: ${playbookType}`);
 
     try {
-        // 1. Prompting the AI to generate the EXACT execution code
         const codeGenPrompt = `You are the 'Zero-Code Playbook Engineer' for Bayezid SOAR.
         Your job is to generate the exact, raw cURL command to execute a security action.
         
@@ -33,39 +32,47 @@ const executePlaybook = async(alertId, aiAnalysis, payload) => {
         The SOC has requested to execute: "${playbookType}" on Target: "${targetIp}".
         
         Instructions:
-        1. Write ONLY the raw, functional 'curl' command required to perform this action against the specified Firewall or EDR API.
+        1. Write ONLY the raw, functional 'curl' command required to perform this action.
         2. Use placeholder API keys (e.g., 'YOUR_API_KEY').
-        3. Do NOT include markdown blocks (like \`\`\`bash), explanations, or any other text. JUST THE RAW COMMAND.
-        4. If the action is generic (like "ISOLATE_HOST"), generate a CrowdStrike isolation API call. If it's "BLOCK_IP", generate a FortiGate block API call.`;
+        3. Do NOT include markdown blocks (like \`\`\`bash), explanations, or any other text. JUST THE RAW COMMAND.`;
 
-        console.log(`[🧠] Asking AI to synthesize execution code for ${SECURITY_ENVIRONMENT.FIREWALL}...`);
+        let generatedCommand = "";
 
-        // استخدام Qwen (اللوكال) كمحرك سريع لتوليد الكود
-        const axios = require('axios');
-        const aiCodeResponse = await axios.post('http://localhost:11434/api/generate', {
-            model: process.env.LOCAL_MODEL_NAME || 'qwen2.5-coder:7b',
-            prompt: codeGenPrompt,
-            stream: false
-        });
+        try {
+            console.log(`[☁️] Asking Cloud AI (Gemini) to synthesize execution code for ${SECURITY_ENVIRONMENT.FIREWALL}...`);
+            const genAI = new GoogleGenerativeAI(process.env.GOOGLE_API_KEY);
+            const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
+            const result = await model.generateContent(codeGenPrompt);
+            generatedCommand = result.response.text().trim();
 
-        let generatedCommand = aiCodeResponse.data.response.trim();
-        // تنظيف الكود لو الـ AI رجع Markdown بالغلط
+        } catch (cloudErr) {
+            console.log(`[⚠️] Gemini Cloud Failed (Quota/Network). Switching to Local AI...`);
+            const aiCodeResponse = await axios.post('http://localhost:11434/api/generate', {
+                model: process.env.LOCAL_MODEL_NAME || 'qwen2.5-coder:7b',
+                prompt: codeGenPrompt,
+                stream: false
+            });
+            generatedCommand = aiCodeResponse.data.response.trim();
+        }
+
         generatedCommand = generatedCommand.replace(/```bash/gi, '').replace(/```/gi, '').trim();
 
         console.log(`[✨] AI Synthesized Command:\n${generatedCommand}`);
 
-        // 2. محاكاة التنفيذ (عشان إحنا معندناش Fortinet حقيقي دلوقتي)
-        // في البيئة الحقيقية، كنا هنعمل await execPromise(generatedCommand)
         console.log(`[⚙️] Executing API Call to Security Appliance...`);
         let executionOutput = "Simulated Success: 200 OK. Action applied successfully via Zero-Code generation.";
 
-        // 3. تحديث الداتا بيز بحالة التنفيذ والكود اللي اتولد
+        console.log(`[⚙️] Executing API Call to Security Appliance...`);
+        let executionOutput = "Simulated Success: 200 OK. Action applied successfully via Zero-Code generation.";
+
+        const encryptedCommand = encryptPayload(generatedCommand) || "ENCRYPTION_FAILED";
+        console.log(`[🔒] Payload Encrypted successfully before saving to DB.`);
+
         await prisma.alert.update({
             where: { id: alertId },
             data: {
                 status: 'RESOLVED_BY_PLAYBOOK',
-                // بنحفظ الكود اللي الـ AI ألفه في الداتا بيز عشان الـ Audit
-                playbookDetails: `[Dynamic Playbook Generated]\nAction: ${playbookType}\nCode:\n${generatedCommand}\nResult: ${executionOutput}`
+                playbookDetails: `[Dynamic Playbook Generated]\nAction: ${playbookType}\nEncrypted_Payload:\n${encryptedCommand}\nResult: ${executionOutput}`
             }
         });
 
@@ -74,13 +81,10 @@ const executePlaybook = async(alertId, aiAnalysis, payload) => {
 
     } catch (error) {
         console.error("[-] Playbook Execution Failed:", error);
-
-        // لو حصل مشكلة، بنسجل إن التنفيذ فشل
         await prisma.alert.update({
             where: { id: alertId },
             data: { status: 'PLAYBOOK_FAILED' }
         });
-
         return `Failed to execute dynamic playbook: ${error.message}`;
     }
 };

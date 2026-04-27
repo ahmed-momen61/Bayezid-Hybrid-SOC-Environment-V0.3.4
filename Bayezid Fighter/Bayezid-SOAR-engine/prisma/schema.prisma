@@ -1,11 +1,13 @@
 generator client {
   provider = "prisma-client-js"
+  previewFeatures = ["postgresqlExtensions"]
 }
 
 datasource db {
   provider  = "postgresql"
   url       = env("DATABASE_URL")
   directUrl = env("DIRECT_URL")
+  extensions = [vector]
 }
 
 model Alert {
@@ -38,6 +40,8 @@ model Alert {
   
   createdAt          DateTime @default(now())
   chats     IncidentChat[]
+  playbookDetails    String?
+  embedding          Unsupported("vector(768)")?
 }
 
 model Playbook {
@@ -72,7 +76,7 @@ model ChatMessage {
 }
 
 model SystemConfig {
-  id        String   @id @default("current") // دايماً هنستخدم id واحد
+  id        String   @id @default("current") 
   key       String   @unique
   value     String
   updatedAt DateTime @updatedAt
@@ -81,7 +85,7 @@ model SystemConfig {
 model IncidentChat {
   id        String   @id @default(uuid())
   alertId   String
-  sender    String   // (e.g., "Ahmed", "Youssef", "Bayezid-Action")
+  sender    String   
   message   String
   createdAt DateTime @default(now())
   
