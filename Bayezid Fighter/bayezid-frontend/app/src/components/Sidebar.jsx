@@ -1,4 +1,4 @@
-import { useState } from 'react'
+
 import {
   LayoutDashboard,
   Swords,
@@ -9,7 +9,8 @@ import {
   ChevronRight,
   Activity
 } from 'lucide-react'
-
+import { useState, useEffect } from 'react'
+import { socket } from '../socket' 
 const navItems = [
   {
     id: 'dashboard',
@@ -64,6 +65,21 @@ const teamBadgeColors = {
 const Sidebar = () => {
   const [activeItem, setActiveItem] = useState('warroom')
   const [collapsed, setCollapsed] = useState(false)
+
+const [isConnected, setIsConnected] = useState(socket.connected)
+
+  useEffect(() => {
+    const onConnect = () => setIsConnected(true)
+    const onDisconnect = () => setIsConnected(false)
+
+    socket.on('connect', onConnect)
+    socket.on('disconnect', onDisconnect)
+
+    return () => {
+      socket.off('connect', onConnect)
+      socket.off('disconnect', onDisconnect)
+    }
+  }, [])
 
   return (
     <aside
@@ -182,9 +198,9 @@ const Sidebar = () => {
                 Socket
               </span>
               <div className="flex items-center gap-1.5">
-                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-                <span className="text-[9px] text-emerald-400 font-mono">
-                  LIVE
+                <span className={`w-1.5 h-1.5 rounded-full animate-pulse ${isConnected ? 'bg-emerald-400' : 'bg-rose-500'}`} />
+                <span className={`text-[9px] font-mono ${isConnected ? 'text-emerald-400' : 'text-rose-500'}`}>
+                  {isConnected ? 'LIVE' : 'OFFLINE'}
                 </span>
               </div>
             </div>

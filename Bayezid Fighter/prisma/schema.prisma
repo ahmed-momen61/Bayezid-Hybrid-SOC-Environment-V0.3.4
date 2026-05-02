@@ -41,7 +41,7 @@ model Alert {
   createdAt          DateTime @default(now())
   chats     IncidentChat[]
   playbookDetails    String?
-  embedding          Unsupported("vector(768)")?
+  embedding Unsupported("vector(3072)")?
 }
 
 model Playbook {

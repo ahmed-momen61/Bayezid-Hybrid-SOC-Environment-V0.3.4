@@ -62,9 +62,6 @@ const executePlaybook = async(alertId, aiAnalysis, payload) => {
         console.log(`[⚙️] Executing API Call to Security Appliance...`);
         let executionOutput = "Simulated Success: 200 OK. Action applied successfully via Zero-Code generation.";
 
-        console.log(`[⚙️] Executing API Call to Security Appliance...`);
-        let executionOutput = "Simulated Success: 200 OK. Action applied successfully via Zero-Code generation.";
-
         const encryptedCommand = encryptPayload(generatedCommand) || "ENCRYPTION_FAILED";
         console.log(`[🔒] Payload Encrypted successfully before saving to DB.`);
 

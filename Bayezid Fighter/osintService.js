@@ -4,6 +4,11 @@ const OTX_API_KEY = process.env.OTX_API_KEY;
 const OTX_BASE_URL = 'https://otx.alienvault.com/api/v1/indicators';
 
 const enrichWithOSINT = async(ipAddress) => {
+    const isInternal = /^(127\.|10\.|172\.(1[6-9]|2[0-9]|3[0-1])\.|192\.168\.)/.test(ipAddress);
+    if (isInternal) {
+        console.log(`[ℹ️] IP ${ipAddress} is Internal. Skipping OTX search...`);
+        return { ip: ipAddress, note: "Internal IP - No OSINT needed", reputation_score: "CLEAN" };
+    }
     console.log(`\n[🔍] Gathering AlienVault OTX Intelligence for IP: ${ipAddress}...`);
 
     try {

@@ -1,4 +1,5 @@
 const express = require('express');
+const cors = require('cors');
 const readline = require('readline');
 const dotenv = require('dotenv');
 const { PrismaClient } = require('@prisma/client');
@@ -18,7 +19,19 @@ dotenv.config();
 
 const prisma = new PrismaClient();
 const app = express();
-
+app.use(cors());
+app.use(express.json());
+app.use(express.text());
+const http = require('http');
+const { Server } = require('socket.io');
+const httpServer = http.createServer(app);
+const io = new Server(httpServer, {
+    cors: {
+        origin: "http://localhost:5173",
+        methods: ["GET", "POST"]
+    }
+});
+global.io = io;
 app.use(express.json());
 app.use(express.text());
 
@@ -667,6 +680,29 @@ const loadConfigsFromDB = async() => {
     }
 };
 
+io.on('connection', (socket) => {
+    console.log(`[🔌] New Connection: ${socket.id}`);
+
+    socket.on('join_war_room', () => {
+        socket.join('war_room_shield');
+        console.log(`[🛡️] Socket ${socket.id} joined the War Room.`);
+    });
+
+    socket.on('chat_message', async(data) => {
+        console.log(`[💬] Message from Dashboard: ${data.text}`);
+        if (data.text.includes('@Bayezid')) {
+            io.emit('chat_message', {
+                sender: 'Bayezid-AI',
+                text: 'System command received. Analyzing threat patterns...',
+                type: 'system'
+            });
+        }
+    });
+
+    socket.on('disconnect', () => {
+        console.log(`[❌] Socket Disconnected: ${socket.id}`);
+    });
+});
 
 const startBayezidServer = () => {
     const server = httpServer.listen(PORT, async() => {
@@ -694,7 +730,6 @@ const startBayezidServer = () => {
         console.log(`[⏱️] SLA Escalation Watcher Active (${liveConfig.SLA_TIMEOUT_MINUTES} min timeout)`);
     });
 
-
     server.on('error', (error) => {
         if (error.code === 'EADDRINUSE') {
             console.error(`\n[!] ERROR: Port ${PORT} is currently in use!`);
@@ -702,6 +737,7 @@ const startBayezidServer = () => {
             console.error('\n[-] Server Crash:', error.message);
         }
     });
+
 };
 
 const rl = readline.createInterface({

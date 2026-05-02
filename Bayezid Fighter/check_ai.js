@@ -13,25 +13,37 @@ async function checkGoogleModels() {
 
     try {
         const response = await axios.get(`https://generativelanguage.googleapis.com/v1beta/models?key=${apiKey}`);
-
         const models = response.data.models;
-        console.log(`\n[✅] SUCCESS! Here are the models your API Key is allowed to use for generation:\n`);
 
+        console.log(`\n[✅] SUCCESS! Your API Key is active and authorized.`);
+
+        console.log(`\n--- 🟢 CHAT MODELS (Used in aiService.js) ---`);
         models.forEach(model => {
             if (model.supportedGenerationMethods.includes("generateContent")) {
                 console.log(`🟢 ${model.name.replace('models/', '')}`);
             }
         });
 
-        console.log(`\n[*] Copy one of the green names above and put it in your aiService.js!`);
+        console.log(`\n--- 🔵 EMBEDDING MODELS (Used in memoryService.js) ---`);
+        let foundEmbedding = false;
+        models.forEach(model => {
+            if (model.supportedGenerationMethods.includes("embedContent")) {
+                console.log(`🔵 ${model.name.replace('models/', '')}`);
+                foundEmbedding = true;
+            }
+        });
+
+        if (!foundEmbedding) {
+            console.log(`\n[⚠️] WARNING: No Embedding models found for this API Key.`);
+        }
+
+        console.log(`\n[*] Final Step: Copy a BLUE name to memoryService.js and a GREEN name to aiService.js!`);
 
     } catch (error) {
-        if (error.response && error.response.status === 403) {
-            console.log('\n[❌] Error 403: API Key is not valid or does not have access to Gemini API.');
-        } else if (error.response && error.response.status === 400) {
-            console.log('\n[❌] Error 400: API Key might be restricted or typed incorrectly.');
+        if (error.response) {
+            console.log(`\n[❌] Google API Error (${error.response.status}): ${error.response.data.error.message}`);
         } else {
-            console.error('\n[❌] Error fetching models:', error.message);
+            console.error('\n[❌] Connection Error:', error.message);
         }
     }
 }

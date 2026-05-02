@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
+import { socket } from '../socket';
 import {
   Radar,
   AlertTriangle,
@@ -48,85 +49,6 @@ const severityConfig = {
   },
 }
 
-const initialAlerts = [
-  {
-    id: 'ALT-001',
-    severity: 'CRITICAL',
-    sourceIp: '185.220.101.42',
-    targetServer: 'web-prod-01',
-    eventType: 'Brute Force SSH',
-    threatType: 'Credential Stuffing',
-    status: 'ANALYZED',
-    timestamp: '14:32:07',
-    attempts: 47,
-  },
-  {
-    id: 'ALT-002',
-    severity: 'HIGH',
-    sourceIp: '192.168.7.91',
-    targetServer: 'db-primary',
-    eventType: 'SQL Injection Attempt',
-    threatType: 'Web Exploit',
-    status: 'WAITING_FOR_APPROVAL',
-    timestamp: '14:31:52',
-    attempts: 12,
-  },
-  {
-    id: 'ALT-003',
-    severity: 'MEDIUM',
-    sourceIp: '103.253.145.8',
-    targetServer: 'api-gateway',
-    eventType: 'Rate Limit Exceeded',
-    threatType: 'DoS Attempt',
-    status: 'ANALYZED',
-    timestamp: '14:31:18',
-    attempts: 3,
-  },
-  {
-    id: 'ALT-004',
-    severity: 'CRITICAL',
-    sourceIp: '45.142.212.100',
-    targetServer: 'mail-server',
-    eventType: 'Malware Upload',
-    threatType: 'Remote Access Trojan',
-    status: 'AUTO_ESCALATED',
-    timestamp: '14:30:44',
-    attempts: 1,
-  },
-  {
-    id: 'ALT-005',
-    severity: 'LOW',
-    sourceIp: '10.0.4.22',
-    targetServer: 'vpn-gateway',
-    eventType: 'Failed Login',
-    threatType: 'Scanning',
-    status: 'FALSE_POSITIVE',
-    timestamp: '14:29:31',
-    attempts: 2,
-  },
-  {
-    id: 'ALT-006',
-    severity: 'HIGH',
-    sourceIp: '91.207.175.66',
-    targetServer: 'cdn-edge-03',
-    eventType: 'XSS Payload',
-    threatType: 'Web Exploit',
-    status: 'RESOLVED_BY_MEMORY',
-    timestamp: '14:28:09',
-    attempts: 8,
-  },
-  {
-    id: 'ALT-007',
-    severity: 'MEDIUM',
-    sourceIp: '78.129.139.20',
-    targetServer: 'dns-primary',
-    eventType: 'DNS Tunneling',
-    threatType: 'Data Exfiltration',
-    status: 'ANALYZED',
-    timestamp: '14:27:45',
-    attempts: 5,
-  },
-]
 
 const statusColors = {
   ANALYZED: 'text-cyan-400',
@@ -153,7 +75,7 @@ const AlertItem = ({ alert, isNew }) => {
         <div className="flex items-center gap-2">
           <Icon className={`w-3.5 h-3.5 ${config.color} flex-shrink-0`} />
           <span className={`text-[10px] font-bold tracking-wider ${config.color} font-mono`}>
-            {alert.id}
+            {alert.id?.split('-')[0] || 'ALT'}
           </span>
           <span
             className={`text-[9px] px-1.5 py-0.5 rounded border ${config.bg} ${config.color} ${config.border}`}
@@ -169,7 +91,7 @@ const AlertItem = ({ alert, isNew }) => {
 
       {/* Event Type */}
       <div className="text-[11px] font-semibold text-slate-200 mb-1 tracking-wide">
-        {alert.eventType}
+        {alert.threatType || alert.eventType || 'Unknown Threat'}
       </div>
 
       {/* Details */}
@@ -223,25 +145,46 @@ const TerminalLine = ({ text, type = 'info' }) => {
 }
 
 const AlertRadar = () => {
-  const [alerts, setAlerts] = useState(initialAlerts)
-  const [isConnected, setIsConnected] = useState(true)
+const [alerts, setAlerts] = useState([])
+  const [isConnected, setIsConnected] = useState(socket.connected)
   const [filterSeverity, setFilterSeverity] = useState('ALL')
   const [expandedTerminal, setExpandedTerminal] = useState(false)
+  const [terminalLogs, setTerminalLogs] = useState([
+    { text: 'System booting...', type: 'info' }
+  ])
+  
   const scrollRef = useRef(null)
   const terminalRef = useRef(null)
 
-  const terminalLogs = [
-    { text: 'Socket.io connected to ws://localhost:3000', type: 'success' },
-    { text: 'Alert stream initialized - listening for events', type: 'info' },
-    { text: 'SLA Watcher active (5 min timeout)', type: 'info' },
-    { text: 'AI Engine: LOCAL model loaded', type: 'success' },
-    { text: 'RedSwarm agents: 6 registered', type: 'info' },
-    { text: 'MITRE ATT&CK database: loaded', type: 'success' },
-    { text: 'OSINT enrichment: ENABLED', type: 'info' },
-    { text: 'CTI feed: ACTIVE - 14 sources', type: 'info' },
-    { text: 'Memory vector search: online', type: 'success' },
-    { text: 'Telegram alerts: configured', type: 'info' },
-  ]
+  const addLog = (text, type = 'info') => {
+    setTerminalLogs(prev => [...prev.slice(-49), { text, type }])
+  }
+
+  useEffect(() => {
+    const onConnect = () => {
+      setIsConnected(true)
+      addLog('Socket.io connected successfully', 'success')
+      socket.emit('join_war_room') 
+    }
+    const onDisconnect = () => {
+      setIsConnected(false)
+      addLog('Connection lost. Retrying...', 'error')
+    }
+    const onNewAlert = (alertData) => {
+      setAlerts(prev => [alertData, ...prev].slice(0, 50)) 
+      addLog(`New Alert: ${alertData.sourceIp || 'Unknown'} - ${alertData.threatType || 'Threat'}`, 'warn')
+    }
+
+    socket.on('connect', onConnect)
+    socket.on('disconnect', onDisconnect)
+    socket.on('new_alert', onNewAlert)
+
+    return () => {
+      socket.off('connect', onConnect)
+      socket.off('disconnect', onDisconnect)
+      socket.off('new_alert', onNewAlert)
+    }
+  }, [])
 
   useEffect(() => {
     if (scrollRef.current) {
