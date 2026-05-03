@@ -1,4 +1,3 @@
-```markdown
 # Bayezid Hybrid SOC Environment V0.3.4 (The Closed-Loop Adaptive Defense Update)
 
 ![Version](https://img.shields.io/badge/Version-3.4-red.svg)
@@ -118,15 +117,13 @@ Bayezid is built to thrive in "broken" or unstable environments:
 
 ### Prerequisites
 * **Node.js:** v20.x or higher.
-
 * **Database:** PostgreSQL with the `pgvector` extension (Supabase highly recommended).
-
 * **Local AI (Optional):** Ollama installed for the local fallback engine.
 
 ### Quick Start
 ```bash
 # Clone the repository
-git clone [https://github.com/ahmed-momen61/bayezid-soar-engine.git](https://github.com/ahmed-momen61/bayezid-soar-engine.git)
+git clone https://github.com/ahmed-momen61/bayezid-soar-engine.git
 
 # Install core dependencies
 npm install
@@ -143,7 +140,6 @@ node server.js
 
 ## Environment Variables (.env)
 ```env
-
 PORT=3000
 DATABASE_URL="postgresql://<USER>:<PASSWORD>@<HOST>:<PORT>/<DATABASE>"
 DIRECT_URL="postgresql://<USER>:<PASSWORD>@<HOST>:<PORT>/<DATABASE>"
@@ -172,4 +168,3 @@ SLA_TIMEOUT_MINUTES=5
 **Bayezid Fighter** — **Yildirim Logic — The Strike Before the Signal**
 
 Developed by: **Ahmed Mo'men Ahmed** | 2026.
-```
