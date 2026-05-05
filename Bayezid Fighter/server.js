@@ -907,3 +907,10 @@ rl.question('\nEnter your choice (1 or 2): ', (answer) => {
     rl.close();
     startBayezidServer();
 });
+
+
+process.on('SIGINT', () => {
+    console.log('\n[🛑] Graceful Shutdown Initiated...');
+    console.log('[🧹] Cleaning up background processes...');
+    process.exit(0);
+});

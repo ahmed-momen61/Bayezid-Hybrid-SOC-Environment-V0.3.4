@@ -84,10 +84,8 @@ const analyzeWithVertexAI = async(alertData) => {
         const injectedContext = await enrichContext(safeDataString);
 
         const cloudModels = [
-            "gemini-3.1-pro-preview",
-            "gemini-2.5-pro",
             "gemini-2.5-flash",
-            "gemini-2.0-flash"
+            //"gemini-2.0-flash"
         ];
 
         const systemPrompt = `You are an Elite Cloud-Based Cybersecurity SIEM Correlation Engine.
@@ -295,10 +293,8 @@ const orchestrateRedSwarm = async(targetInfo, currentState) => {
 
 const askRedSwarmAI = async(prompt, requireJson = true) => {
     const cloudModels = [
-        "gemini-3.1-pro-preview",
-        "gemini-2.5-pro",
         "gemini-2.5-flash",
-        "gemini-2.0-flash"
+        //"gemini-2.0-flash"
     ];
 
     for (const modelName of cloudModels) {
@@ -711,6 +707,7 @@ const applyFixAndVerify = async(vulnId, userInstructions) => {
         });
 
         console.log(`\n[🔄] Regression Testing: Breacher is re-testing the exploit...`);
+        await new Promise(resolve => setTimeout(resolve, 6000));
         const verifyPrompt = `You are 'Breacher'. We just patched: ${vuln.vulnName} on ${vuln.targetIp}.
         Original Payload that succeeded: ${vuln.evidence}
         
