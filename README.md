@@ -22,6 +22,14 @@ Bayezid is engineered to solve the "Big Three" SOC challenges: Alert Fatigue, Ve
 
 * **Automated Regression Testing:** Post-remediation, the system automatically summons the Red Team to re-fire the exact exploit payload against the patched endpoint, guaranteeing the mitigation is verified, mathematically sound, and preventing false positives.
 
+* **Cognitive RBAC (AI Veto):** An intelligent AI gatekeeper that evaluates human decisions in real-time, blocking risky remediation approvals from junior analysts and dynamically adjusting user trust scores.
+
+* **Smart Deception & Honeypot (Shadow Routing):** Instead of merely dropping malicious traffic, the system dynamically generates DNAT rules to silently route attackers into isolated Honeypots for continuous observation and Threat Intelligence (TTP) gathering.
+
+* **Post-Breach Forensic RCA:** Acts as a digital forensic investigator, autonomously analyzing logs post-mitigation to determine the root cause, potential impact, and strategic long-term fixes without human intervention.
+
+* **Real-time Compliance Mapping:** Automatically correlates every applied virtual patch to international regulatory standards, appending GDPR, PCI-DSS, NIST, and ISO 27001 compliance notes directly to ITSM tickets.
+
 * **Institutional Memory (Semantic Deduplication):** Using `pgvector`, Bayezid "memorizes" every incident. If an attack pattern repeats—even with a different IP or timestamp—the system recognizes the semantic similarity and applies historical playbooks instantly, saving thousands in API costs and human hours.
 
 * **Agentic Shared Memory (Cognitive Continuity):** Agents continuously read a "Mental Ledger" of the team's successes and failures. Later-stage agents adapt their strategies dynamically based on the specific footprints left by early-stage agents, demonstrating advanced collective reasoning.
@@ -64,7 +72,7 @@ When toggled to **RED MODE**, Bayezid activates a proactive, fully autonomous of
 
 * **The Overlord (Commander):** The supreme orchestrator. Manages the mental ledger, triggers the next agent in the sequence, and commands immediate evasive action if EDR/WAF systems are triggered.
 
-* **The Scribe (Documentation):** Operates seamlessly in the background, consuming success/failure logs to generate highly professional, structured Markdown Penetration Testing reports in real-time.
+* **The Scribe & Stealth Scribe (Documentation):** Operates seamlessly in the background. In standard mode, it consumes success/failure logs to generate real-time reports. In **Stealth Mode**, it executes silent attacks and generates highly professional, structured Markdown Penetration Testing reports without triggering defensive patching.
 
 ### 3. The Red-to-Blue Bridge (Adaptive Cyber Defense)
 
@@ -74,7 +82,7 @@ The system introduces a revolutionary self-healing loop connecting the Red and B
 
 * **Smart Classification & Virtual Patching:** The AI classifies fixes as either *Configuration* or *Code Patches*. For critical vulnerabilities, it instantly generates "Virtual Patches" (e.g., WAF ModSecurity configs, iptables drop rules) to stop bleeding immediately.
 
-* **Live Execution & Verification:** Upon human approval, the AI executes the remediation bash commands. It then summons the Red Team's Breacher Agent to re-fire the original exploit, evaluating the terminal output to conclusively mark the threat as `VERIFIED_SAFE`.
+* **Live Execution & Verification:** Upon human approval (safeguarded by the AI Veto system), the AI executes the remediation bash commands. It then summons the Red Team's Breacher Agent to re-fire the original exploit, evaluating the terminal output to conclusively mark the threat as `VERIFIED_SAFE`.
 
 ### 4. Memory & Intelligence Services
 
@@ -87,7 +95,7 @@ The system introduces a revolutionary self-healing loop connecting the Red and B
 ## Service Breakdown (The Micro-Service Logic)
 
 | Service | Responsibility | Technology |
-| :--- | :--- | :--- |
+| --- | --- | --- |
 | **`server.js`** | The Central Nervous System (Orchestrator & Bridge endpoints) | Node.js / Socket.io / Express |
 | **`aiService.js`** | Multi-Agent Logic, Smart Exec, Red-to-Blue Bridge & Intent Analysis | Gemini / Qwen / RAG / Child Process |
 | **`memoryService.js`** | Vector Storage & Semantic Similarity Search | pgvector / Embeddings |
@@ -101,26 +109,30 @@ The system introduces a revolutionary self-healing loop connecting the Red and B
 
 Bayezid is built to thrive in "broken" or unstable environments:
 
-1.  **AI Fallback Logic:** If the cloud engine returns a 503 (High Demand) or 429 (Quota), the `aiService` automatically re-routes the request to the local `qwen2.5-coder` model.
+1. **AI Fallback Logic:** If the cloud engine returns a 503 (High Demand) or 429 (Quota), the `aiService` automatically re-routes the request to the local `qwen2.5-coder` model.
 
-2.  **Autonomous Execution Retry Loop:** Red agents do not halt on command failures. They analyze the terminal error output and autonomously cycle through pre-generated alternative tactics.
+2. **Autonomous Execution Retry Loop:** Red agents do not halt on command failures. They analyze the terminal error output and autonomously cycle through pre-generated alternative tactics.
 
-3.  **Self-Aware Test Evaluation:** During Regression Testing, the AI can cognitively distinguish between a local environment execution failure and an actual successful server mitigation block, preventing false-positive validations.
+3. **Self-Aware Test Evaluation:** During Regression Testing, the AI can cognitively distinguish between a local environment execution failure and an actual successful server mitigation block, preventing false-positive validations.
 
-4.  **SLA Escalation Watcher:** A persistent background job monitors "Pending" alerts and triggers automatic escalations if the defined SLA is breached.
+4. **SLA Escalation Watcher:** A persistent background job monitors "Pending" alerts and triggers automatic escalations if the defined SLA is breached.
 
-5.  **Graceful Degradation:** If OSINT APIs fail, the system proceeds with internal heuristic analysis rather than stalling the pipeline.
+5. **Graceful Degradation:** If OSINT APIs fail, the system proceeds with internal heuristic analysis rather than stalling the pipeline.
 
 ---
 
 ## Getting Started
 
 ### Prerequisites
+
 * **Node.js:** v20.x or higher.
+
 * **Database:** PostgreSQL with the `pgvector` extension (Supabase highly recommended).
+
 * **Local AI (Optional):** Ollama installed for the local fallback engine.
 
 ### Quick Start
+
 ```bash
 # Clone the repository
 git clone https://github.com/ahmed-momen61/bayezid-soar-engine.git
@@ -134,11 +146,44 @@ npx prisma generate
 
 # Fire up the engine
 node server.js
+
 ```
 
 ---
 
+## API Documentation (Testing the Cognitive Capabilities)
+
+You can test the core AI capabilities via these bridge endpoints using Postman or cURL:
+
+**1. Report Live Threat (Initiate Overlord / Sniper)**
+
+* `POST /api/v1/bridge/report-vuln`
+* Body: `{ "vulnName": "SQL Injection", "severity": "CRITICAL", "detectedBy": "Phantom Agent", "targetIp": "10.0.0.99", "evidence": "GET /?id=1; DROP TABLE users" }`
+
+**2. Cognitive Risk Analysis & Virtual Patch Synthesis**
+
+* `POST /api/v1/bridge/analyze`
+* Body: `{ "vulnId": "<UUID>", "autonomyMode": "Sniper" }`
+
+**3. AI Veto (Cognitive RBAC Approval)**
+
+* `POST /api/v1/bridge/approve-fix`
+* Body: `{ "vulnId": "<UUID>", "userId": "1" }` *(Evaluates fix code and blocks Junior Analysts for risky patches).*
+
+**4. Shadow Routing (Deception & Honeypot Isolation)**
+
+* `POST /api/v1/bridge/isolate`
+* Body: `{ "vulnId": "<UUID>", "attackerIp": "198.51.100.22" }` *(Generates iptables DNAT rules to transparently route attackers to a Honeypot).*
+
+**5. Post-Breach Root Cause Analysis (Forensic RCA)**
+
+* `POST /api/v1/bridge/rca`
+* Body: `{ "vulnId": "<UUID>" }` *(Returns forensic root cause, business impact, and long-term strategic fixes).*
+
+---
+
 ## Environment Variables (.env)
+
 ```env
 PORT=3000
 DATABASE_URL="postgresql://<USER>:<PASSWORD>@<HOST>:<PORT>/<DATABASE>"
@@ -160,11 +205,13 @@ OPENCTI_URL="https://your-opencti-instance-url"
 OPENCTI_TOKEN="your_opencti_token_here"
 
 SLA_TIMEOUT_MINUTES=5
+
 ```
+
 ---
-**NOTE:** You can check the Test showcases and comprehensive analytical reports for both the Blue and Red sides in the provided documentation bundle (RAR file). 
----
+
+## **NOTE:** You can check the Test showcases and comprehensive analytical reports for both the Blue and Red sides in the provided documentation bundle (RAR file).
 
 **Bayezid Fighter** — **Yildirim Logic — The Strike Before the Signal**
 
-Developed by: **Ahmed Mo'men Ahmed** | 2026.
+Developed by: **Ahmed Mo'men Ahmed Ali** | 2026.
