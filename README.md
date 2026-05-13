@@ -14,35 +14,37 @@ By merging **Vector-Based Institutional Memory** with a **Multi-Agent AI Archite
 
 ---
 
-## Core Value Propositions
+## Core Value Propositions (The Trinity Expansion)
 
-Bayezid is engineered to solve the "Big Three" SOC challenges: Alert Fatigue, Vendor Lock-in, and Cognitive Overhead, while introducing state-of-the-art offensive capabilities and autonomous remediation.
+Bayezid is engineered to solve the "Big Three" SOC challenges: Alert Fatigue, Vendor Lock-in, and Cognitive Overhead, while introducing state-of-the-art offensive capabilities, autonomous remediation, and the newly added **Trinity Expansion**.
+
+* **Live Kinetic Filter (The Fast Shield):** A true live in-memory filter that acts as a first line of defense. It processes thousands of logs per millisecond to track IPs in RAM (stopping DDoS/Scanners), uses deep regex signatures (catching SQLi/XSS), and drops bloated payloads. It preserves AI compute costs by ensuring only genuine, complex threats are escalated to the cognitive engine.
+
+* **The Alchemist Agent (Adaptive Exploit Mutation):** Radically transforms Red Team operations. The Alchemist doesn’t just generate static PoC code; it executes a live fuzzing loop directly on the target OS via \`smartExec\`. If blocked by an EDR, WAF, or OS execution policy, it ingests the real stderr/stdout, dynamically mutates the payload (Base64, chunking, lotl tactics), and re-fires until initial access is secured.
+
+* **The Cognitive Mirage Agent (High-Interaction Deception):** Upgrades the Honeypot to a psychological trap. Rather than static deceptive files, it powers a live TCP daemon (port 2222). When a trapped attacker types commands, the Mirage Agent executes them locally but acts as a **Strategic Censor**—stripping any trace of Bayezid's source code from the output—and injects highly contextual, dynamically hallucinated 'Honeytokens' (like \`aws_s3_keys.yml.bak\`) tailored to the attacker's profiled intent.
 
 * **Closed-Loop Auto-Remediation (Red-to-Blue Bridge):** Bridges offensive discovery with defensive mitigation. Upon detecting a vulnerability, the Blue Team autonomously classifies the threat, synthesizes executable mitigation code (e.g., Virtual Patches, WAF rules), and applies the patch directly to the system architecture.
 
-* **Automated Regression Testing:** Post-remediation, the system automatically summons the Red Team to re-fire the exact exploit payload against the patched endpoint, guaranteeing the mitigation is verified, mathematically sound, and preventing false positives.
+* **Automated Regression Testing:** Post-remediation, the system automatically summons the Red Team to re-fire the exact mutated exploit payload against the patched endpoint, guaranteeing the mitigation is verified and mathematically sound.
 
 * **Cognitive RBAC (AI Veto):** An intelligent AI gatekeeper that evaluates human decisions in real-time, blocking risky remediation approvals from junior analysts and dynamically adjusting user trust scores.
 
-* **Smart Deception & Honeypot (Shadow Routing):** Instead of merely dropping malicious traffic, the system dynamically generates DNAT rules to silently route attackers into isolated Honeypots for continuous observation and Threat Intelligence (TTP) gathering.
+* **Smart Deception & Honeypot (Shadow Routing):** Instead of merely dropping malicious traffic, the system dynamically generates DNAT rules to silently route attackers into isolated environments.
 
 * **Post-Breach Forensic RCA:** Acts as a digital forensic investigator, autonomously analyzing logs post-mitigation to determine the root cause, potential impact, and strategic long-term fixes without human intervention.
 
 * **Real-time Compliance Mapping:** Automatically correlates every applied virtual patch to international regulatory standards, appending GDPR, PCI-DSS, NIST, and ISO 27001 compliance notes directly to ITSM tickets.
 
-* **Institutional Memory (Semantic Deduplication):** Using `pgvector`, Bayezid "memorizes" every incident. If an attack pattern repeats—even with a different IP or timestamp—the system recognizes the semantic similarity and applies historical playbooks instantly, saving thousands in API costs and human hours.
+* **Institutional Memory (Semantic Deduplication):** Using \`pgvector\`, Bayezid "memorizes" every incident. If an attack pattern repeats—even with a different IP or timestamp—the system recognizes the semantic similarity and applies historical playbooks instantly.
 
-* **Agentic Shared Memory (Cognitive Continuity):** Agents continuously read a "Mental Ledger" of the team's successes and failures. Later-stage agents adapt their strategies dynamically based on the specific footprints left by early-stage agents, demonstrating advanced collective reasoning.
+* **Agentic Shared Memory (Cognitive Continuity):** Agents continuously read a "Mental Ledger" of the team's successes and failures. Later-stage agents adapt their strategies dynamically based on the specific footprints left by early-stage agents.
 
-* **Zero-Code Dynamic Playbooks & Execution:** True vendor neutrality. The AI synthesizes execution code (e.g., `cURL` for Palo Alto, LotL commands for Linux/Windows) on-the-fly, adapting to the specific infrastructure context without relying on static, hardcoded scripts.
+* **Zero-Code Dynamic Playbooks & Execution:** True vendor neutrality. The AI synthesizes execution code (e.g., \`cURL\` for Palo Alto, LotL commands for Linux/Windows) on-the-fly, adapting to the specific infrastructure context without relying on static scripts.
 
-* **Asynchronous Smart Execution (`smartExec`):** An intelligent execution engine that spawns detached background processes for heavy operations (like full port scans), preventing server lockups while salvaging partial outputs if a command times out.
-
-* **Real-Time Collaborative War Room:** Integrated **Socket.io** enables a live environment where human analysts and AI agents interact. Analysts can summon the AI via `@Bayezid-Action` for immediate isolation or forensic tasks.
+* **Asynchronous Smart Execution (\`smartExec\`):** An intelligent execution engine that spawns detached background processes for heavy operations (like full port scans) and facilitates the live execution capabilities of the Alchemist and Mirage agents.
 
 * **Hybrid Resilience (Auto-Failover):** The system prioritizes **Google Gemini 2.5 Flash** but features an instantaneous, transparent failover to **Local AI (Qwen 2.5 / Ollama)** if the cloud experiences latency or quota limits.
-
-* **Ironclad Data Privacy:** All sensitive security payloads, API keys, and playbooks are encrypted using **AES-256-CBC** before storage. Proprietary intelligence remains unreadable even if the underlying database is compromised.
 
 ---
 
@@ -52,43 +54,41 @@ The system is built on a modular, event-driven architecture designed for high-th
 
 ### 1. The Blue Team Engine (Cognitive Defense)
 
-* **Ingestion & Vectorization:** Logs are received, normalized, and immediately compared against the Vector DB for semantic matches.
+* **Stage 1 Triage (Kinetic Filter):** Drops non-malicious noise and enforces live rate-limiting before AI invocation.
 
-* **Artifact Extraction (Detective Agent):** Performs deep RAG (Retrieval-Augmented Generation) against a RAM-cached **MITRE ATT&CK Enterprise Database** to map threats to specific TTPs.
+* **Ingestion & Vectorization:** Escalated logs are normalized and compared against the Vector DB for semantic matches.
 
-* **Strategic Orchestration (Commander Agent):** Formulates the JSON-based threat report, calculates confidence scores, and determines the escalation path.
+* **Artifact Extraction (Detective Agent):** Performs deep RAG against a RAM-cached **MITRE ATT&CK Enterprise Database**.
+
+* **Strategic Orchestration (Commander Agent):** Formulates the threat report, calculates confidence scores, and determines the escalation path.
 
 ### 2. The Red Team Swarm (Autonomous Offensive APT)
 
-When toggled to **RED MODE**, Bayezid activates a proactive, fully autonomous offensive squad capable of executing complex kill-chains with intelligent fallback mechanisms:
+When toggled to **RED MODE**, Bayezid activates a proactive, fully autonomous offensive squad:
 
-* **The Scout (Reconnaissance):** Masters Operational Security (OpSec). Formulates sophisticated WAF-bypass commands (injecting `X-Forwarded-For` headers, rate-limiting) and autonomously routes heavy enumeration tasks to background processes.
+* **The Scout (Reconnaissance):** Masters OpSec, formulates sophisticated WAF-bypass commands, and passes deep target context.
 
-* **The Breacher (Initial Access):** Displays high exploitation resilience via autonomous retry loops. If an initial payload fails, it dynamically pivots (e.g., transitioning from XXE file inclusion to SSRF attempts) to secure a foothold.
+* **The Alchemist (Initial Access & Fuzzing):** Operates a live mutation loop. Executes shell commands, interprets OS errors or WAF blocks, and dynamically obfuscates payloads until a foothold is achieved.
 
-* **The Phantom (Privilege Escalation):** An OS internals ghost. Capable of analyzing compromised contexts to deploy Docker container breakouts, SUID enumeration, and Living off the Land (LotL) tactics to achieve root/SYSTEM.
+* **The Phantom (Privilege Escalation):** An OS internals ghost. Capable of analyzing compromised contexts to deploy container breakouts and LotL tactics.
 
-* **The Chameleon (Stealth & Anti-Forensics):** The cognitive masterpiece of the swarm. Utilizes the *Shared Memory* ledger to cross-reference previous agent actions. It can autonomously detect deceptive user prompts (e.g., realizing the target is Linux despite the user claiming it is Windows) to execute flawless, zero-code log wiping and track-clearing maneuvers.
+* **The Chameleon (Stealth & Anti-Forensics):** Utilizes the *Shared Memory* ledger to execute flawless, zero-code log wiping and track-clearing maneuvers.
 
-* **The Overlord (Commander):** The supreme orchestrator. Manages the mental ledger, triggers the next agent in the sequence, and commands immediate evasive action if EDR/WAF systems are triggered.
-
-* **The Scribe & Stealth Scribe (Documentation):** Operates seamlessly in the background. In standard mode, it consumes success/failure logs to generate real-time reports. In **Stealth Mode**, it executes silent attacks and generates highly professional, structured Markdown Penetration Testing reports without triggering defensive patching.
+* **The Overlord (Commander):** The supreme orchestrator. Manages the mental ledger and triggers evasive actions.
 
 ### 3. The Red-to-Blue Bridge (Adaptive Cyber Defense)
 
-The system introduces a revolutionary self-healing loop connecting the Red and Blue components:
+* **Smart Classification & Virtual Patching:** The AI classifies fixes and instantly generates "Virtual Patches" to stop bleeding immediately.
 
-* **Vulnerability Analysis:** Red Team discoveries are passed to the Blue Team for deep cognitive risk assessment.
+* **Live Execution & Verification:** Upon human approval (safeguarded by AI Veto), the AI executes the remediation bash commands. It then summons the Alchemist to re-fire the exact mutated exploit, evaluating the output to mark the threat as `VERIFIED_SAFE`.
 
-* **Smart Classification & Virtual Patching:** The AI classifies fixes as either *Configuration* or *Code Patches*. For critical vulnerabilities, it instantly generates "Virtual Patches" (e.g., WAF ModSecurity configs, iptables drop rules) to stop bleeding immediately.
+### 4. Memory, Intelligence & Deception Services
 
-* **Live Execution & Verification:** Upon human approval (safeguarded by the AI Veto system), the AI executes the remediation bash commands. It then summons the Red Team's Breacher Agent to re-fire the original exploit, evaluating the terminal output to conclusively mark the threat as `VERIFIED_SAFE`.
-
-### 4. Memory & Intelligence Services
+* **Cognitive Mirage (TCP Daemon):** A live port 2222 honeypot interface. Analyzes attacker intent, censors Bayezid source code from execution outputs, and injects realistic honeytokens.
 
 * **Embedding Engine:** Converts security logs into 768-dimensional vectors.
 
-* **Global Intel Enrichment:** Real-time OSINT queries from **AlienVault OTX**, **MISP**, and **OpenCTI** provide the AI with the latest global reputation scores.
+* **Global Intel Enrichment:** Real-time OSINT queries from **AlienVault OTX**, **MISP**, and **OpenCTI**.
 
 ---
 
@@ -96,28 +96,13 @@ The system introduces a revolutionary self-healing loop connecting the Red and B
 
 | Service | Responsibility | Technology |
 | --- | --- | --- |
-| **`server.js`** | The Central Nervous System (Orchestrator & Bridge endpoints) | Node.js / Socket.io / Express |
-| **`aiService.js`** | Multi-Agent Logic, Smart Exec, Red-to-Blue Bridge & Intent Analysis | Gemini / Qwen / RAG / Child Process |
+| **`server.js`** | The Central Nervous System (Orchestrator, Bridge endpoints, Honeypot TCP Daemon) | Node.js / Socket.io / Express / Net |
+| **`aiService.js`** | Multi-Agent Logic, Smart Exec, Alchemist Fuzzing, Mirage Censorship & RCA | Gemini / Qwen / RAG / Child Process |
+| **`kineticFilter.js`** | Stage 1 Live Triage, In-Memory Rate Limiting, Deep Regex Inspection | JavaScript / Node.js Memory |
 | **`memoryService.js`** | Vector Storage & Semantic Similarity Search | pgvector / Embeddings |
 | **`playbookService.js`** | Zero-Code Synthesis & API Execution | AI Synthesis / Shell Exec |
 | **`cryptoService.js`** | Payload Encryption & Key Management | Node Crypto (AES-256) |
 | **`tuningService.js`** | Natural Language Configuration (NLP) | Dynamic Config Engine |
-
----
-
-## Resilience & Self-Healing
-
-Bayezid is built to thrive in "broken" or unstable environments:
-
-1. **AI Fallback Logic:** If the cloud engine returns a 503 (High Demand) or 429 (Quota), the `aiService` automatically re-routes the request to the local `qwen2.5-coder` model.
-
-2. **Autonomous Execution Retry Loop:** Red agents do not halt on command failures. They analyze the terminal error output and autonomously cycle through pre-generated alternative tactics.
-
-3. **Self-Aware Test Evaluation:** During Regression Testing, the AI can cognitively distinguish between a local environment execution failure and an actual successful server mitigation block, preventing false-positive validations.
-
-4. **SLA Escalation Watcher:** A persistent background job monitors "Pending" alerts and triggers automatic escalations if the defined SLA is breached.
-
-5. **Graceful Degradation:** If OSINT APIs fail, the system proceeds with internal heuristic analysis rather than stalling the pipeline.
 
 ---
 
@@ -146,19 +131,19 @@ npx prisma generate
 
 # Fire up the engine
 node server.js
-
 ```
 
 ---
 
 ## API Documentation (Testing the Cognitive Capabilities)
 
-You can test the core AI capabilities via these bridge endpoints using Postman or cURL:
+You can test the core AI capabilities via these bridge endpoints using Postman, cURL, or raw TCP connections:
 
-**1. Report Live Threat (Initiate Overlord / Sniper)**
+**1. Report Live Threat (Initiate Kinetic Filter -> Overlord)**
 
 * `POST /api/v1/bridge/report-vuln`
-* Body: `{ "vulnName": "SQL Injection", "severity": "CRITICAL", "detectedBy": "Phantom Agent", "targetIp": "10.0.0.99", "evidence": "GET /?id=1; DROP TABLE users" }`
+* Body: `{ "vulnName": "SQL Injection", "severity": "CRITICAL", "detectedBy": "Phantom Agent", "targetIp": "10.0.0.99", "evidence": "admin' UNION SELECT password FROM users--" }`
+* *(Spam this endpoint to trigger the Live Kinetic Filter's DDoS protection).*
 
 **2. Cognitive Risk Analysis & Virtual Patch Synthesis**
 
@@ -168,17 +153,27 @@ You can test the core AI capabilities via these bridge endpoints using Postman o
 **3. AI Veto (Cognitive RBAC Approval)**
 
 * `POST /api/v1/bridge/approve-fix`
-* Body: `{ "vulnId": "<UUID>", "userId": "1" }` *(Evaluates fix code and blocks Junior Analysts for risky patches).*
+* Body: `{ "vulnId": "<UUID>", "userId": "1" }`
 
 **4. Shadow Routing (Deception & Honeypot Isolation)**
 
 * `POST /api/v1/bridge/isolate`
-* Body: `{ "vulnId": "<UUID>", "attackerIp": "198.51.100.22" }` *(Generates iptables DNAT rules to transparently route attackers to a Honeypot).*
+* Body: `{ "vulnId": "<UUID>", "attackerIp": "198.51.100.22" }`
 
 **5. Post-Breach Root Cause Analysis (Forensic RCA)**
 
 * `POST /api/v1/bridge/rca`
-* Body: `{ "vulnId": "<UUID>" }` *(Returns forensic root cause, business impact, and long-term strategic fixes).*
+* Body: `{ "vulnId": "<UUID>" }`
+
+**6. Live Alchemist Exploit Generation**
+
+* `POST /api/v1/red/alchemist`
+* Body: `{ "targetIp": "127.0.0.1", "vulnContext": "Remote Code Execution (RCE)", "maxMutations": 3 }`
+
+**7. High-Interaction Honeypot (TCP TCP Daemon)**
+
+* Execute from an attacker terminal: `telnet <SERVER_IP> 2222`
+* *(Run commands like `ls` or `dir` to experience the Cognitive Mirage Agent's strategic censorship and honeytoken injection).*
 
 ---
 
@@ -205,7 +200,6 @@ OPENCTI_URL="https://your-opencti-instance-url"
 OPENCTI_TOKEN="your_opencti_token_here"
 
 SLA_TIMEOUT_MINUTES=5
-
 ```
 
 ---
