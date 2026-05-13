@@ -1,12 +1,13 @@
 const express = require('express');
 const net = require('net');
+const axios = require('axios');
 const cors = require('cors');
 const readline = require('readline');
 const dotenv = require('dotenv');
 const { PrismaClient } = require('@prisma/client');
 const path = require('path');
 const { processTuningCommand, liveConfig } = require('./tuningService');
-const { smartExec, analyzeWithVertexAI, analyzeWithLocalModel, runScoutAgent, runBreacherAgent, runPhantomAgent, runChameleonAgent, runOverlordAgent, runScribeAgent, runActionAgent, bridgeRedToBlue, applyFixAndVerify, runStealthScribeAgent, runVetoAgent, runShadowRouterAgent, runForensicRCAAgent, executeAlchemistFuzzingLoop, runMirageAgent } = require('./aiService');
+const { smartExec, analyzeWithVertexAI, analyzeWithLocalModel, runScoutAgent, runBreacherAgent, runPhantomAgent, runChameleonAgent, runOverlordAgent, runScribeAgent, runActionAgent, bridgeRedToBlue, applyFixAndVerify, runStealthScribeAgent, runVetoAgent, runShadowRouterAgent, runForensicRCAAgent, executeAlchemistFuzzingLoop, runMirageAgent, runWardenSandbox, runZeroDayForgeAgent } = require('./aiService');
 const { executePlaybook } = require('./playbookService');
 const { enrichWithOSINT } = require('./osintService');
 const { sendTelegramAlert } = require('./notificationService');
@@ -16,6 +17,7 @@ const { findSimilarIncidents, saveIncidentToMemory } = require('./memoryService'
 const crypto = require('crypto');
 const itsmService = require('./itsmService');
 const { analyzeLogFastLive } = require('./kineticFilter');
+
 
 const ENCRYPTION_KEY = process.env.ENCRYPTION_KEY || crypto.randomBytes(32).toString('hex');
 const IV_LENGTH = 16;
@@ -630,39 +632,77 @@ app.post('/api/v1/redswarm/auto-pilot', async(req, res) => {
 });
 
 app.post('/api/v1/bridge/report-vuln', async(req, res) => {
-    const { vulnName, severity, detectedBy, targetIp, evidence } = req.body;
+    const {
+        vulnName = "Unknown Suspicious Traffic",
+            severity = "HIGH",
+            targetIp = req.ip || "127.0.0.1",
+            detectedBy = "Bayezid ML Sniper",
+            evidence = ""
+    } = req.body;
 
 
     const sourceIp = req.ip || req.connection.remoteAddress || targetIp || "Unknown";
     console.log(`\n[⚡] Kinetic Filter analyzing incoming telemetry from ${sourceIp}...`);
 
-    const triageResult = analyzeLogFastLive(sourceIp, req.body);
+    const clientIp = req.ip || req.connection.remoteAddress || "127.0.0.1";
+    const triageResult = await analyzeLogFastLive(clientIp, req.body);
 
     if (!triageResult.isSuspicious) {
         console.log(`[♻️] Kinetic Filter Dropped Event: ${triageResult.reason}`);
         return res.json({ status: "ignored", message: triageResult.reason });
     }
 
-    console.log(`[🚨] Kinetic Filter Alert: ${triageResult.reason}. Escalating to Cognitive AI Engine!`);
-    try {
-        const ticketId = await itsmService.createTicket(vulnName, severity, targetIp);
+    if (triageResult.isSuspicious) {
+        if (triageResult.reason && triageResult.reason.includes("(Cached)")) {
+            console.log(`[🛡️] Shield Active: Redundant anomaly from ${clientIp} suppressed by Intelligence Cache.`);
+            return res.json({
+                status: "blocked",
+                message: "Attack suppressed by Intelligence Cache.",
+                reason: triageResult.reason
+            });
+        }
 
-        const vuln = await prisma.vulnerabilityBridge.create({
-            data: { vulnName, severity, detectedBy, targetIp, evidence, ticketId }
-        });
+        console.log(`[🚨] Kinetic Filter Alert: ${triageResult.reason}. Escalating to Cognitive AI Engine!`);
+        let wardenReport = null;
+        if (evidence && (evidence.includes('bash') || evidence.includes('wget') || evidence.length > 50)) {
+            wardenReport = await runWardenSandbox(evidence);
 
-        const { iv, encryptedData } = encryptEvidence(evidence);
-        const sha256Hash = hashEvidence(evidence + Date.now().toString());
+            if (wardenReport && wardenReport.isMalicious) {
+                console.log(`\n[☠️] WARDEN ALERT: Payload verified as ${wardenReport.threatType} (Score: ${wardenReport.riskScore})`);
+                console.log(`[☠️] Verdict: ${wardenReport.sandboxVerdict}`);
 
-        await prisma.evidenceVault.create({
-            data: { incidentId: vuln.id, evidenceType: "PAYLOAD", encryptedData, iv, sha256Hash, collectedBy: detectedBy || "System" }
-        });
+                req.body.severity = "CRITICAL";
+                req.body.vulnName = `[Sandbox Verified] ${wardenReport.threatType} via ${vulnName}`;
+            }
+        }
 
-        console.log(`[🚨] Red Team reported: ${vulnName} (${severity})`);
-        console.log(`[🔐] Evidence Encrypted & Stored in Vault.`);
+        if (wardenReport && !wardenReport.isMalicious) {
+            console.log(`[🧠] Warden analysis confirmed safe. Sending feedback to ML Sniper to learn this pattern...`);
+            axios.post('http://127.0.0.1:8000/api/v1/ml/feedback', {
+                payload: evidence
+            }).catch(e => console.log("[-] Feedback loop failed: ML Sniper might be offline."));
+        }
 
-        res.json({ status: "success", vulnId: vuln.id, ticketId: ticketId, message: "Vulnerability reported & Ticket Created." });
-    } catch (error) { res.status(500).json({ error: error.message }); }
+        try {
+            const ticketId = await itsmService.createTicket(vulnName, severity, targetIp);
+
+            const vuln = await prisma.vulnerabilityBridge.create({
+                data: { vulnName, severity, detectedBy, targetIp, evidence, ticketId }
+            });
+
+            const { iv, encryptedData } = encryptEvidence(evidence);
+            const sha256Hash = hashEvidence(evidence + Date.now().toString());
+
+            await prisma.evidenceVault.create({
+                data: { incidentId: vuln.id, evidenceType: "PAYLOAD", encryptedData, iv, sha256Hash, collectedBy: detectedBy || "System" }
+            });
+
+            console.log(`[🚨] Red Team reported: ${vulnName} (${severity})`);
+            console.log(`[🔐] Evidence Encrypted & Stored in Vault.`);
+
+            res.json({ status: "success", vulnId: vuln.id, ticketId: ticketId, message: "Vulnerability reported & Ticket Created." });
+        } catch (error) { res.status(500).json({ error: error.message }); }
+    }
 });
 
 app.post('/api/v1/users/seed', async(req, res) => {
@@ -955,7 +995,7 @@ console.log(`Please select operational mode:`);
 console.log(`[1] 🛡️  BLUE TEAM (Defensive SOAR & Log Analysis)`);
 console.log(`[2] ⚔️  RED TEAM (Offensive AI Pentesting)`);
 
-rl.question('\nEnter your choice (1 or 2): ', (answer) => {
+rl.question('\nEnter your choice (1 or 2):\n', (answer) => {
     if (answer.trim() === '2') {
         global.BAYEZID_MODE = 'RED';
         console.log("\n[⚔️ RED TEAM] Select Tactical Mode:");
@@ -1102,6 +1142,41 @@ app.post('/api/v1/red/alchemist', async(req, res) => {
     }
 });
 
+app.post('/api/v1/red/forge', async(req, res) => {
+    const { vulnContext, maxRetries } = req.body;
+
+    if (!vulnContext) {
+        return res.status(400).json({ error: "vulnContext is required." });
+    }
+
+    try {
+        console.log(`\n[🚀] Forge Trigger: Commissioning new Zero-Day exploit...`);
+
+        const result = await runZeroDayForgeAgent(vulnContext, maxRetries || 3);
+
+        if (result && result.status === "success") {
+            res.json({
+                status: "weaponized",
+                message: "Exploit successfully compiled and verified.",
+                attemptsTaken: result.attempts,
+                exploitCode: result.weaponizedCode
+            });
+        } else if (result && result.status === "failed") {
+            res.status(422).json({
+                status: "compilation_failed",
+                message: "Forge could not produce a syntactically valid exploit within the retry limit.",
+                lastError: result.lastError,
+                flawedCode: result.flawedCode
+            });
+        } else {
+            res.status(500).json({ error: "Forge critical failure." });
+        }
+    } catch (error) {
+        console.error("[-] Forge API Error:", error.message);
+        res.status(500).json({ error: error.message });
+    }
+});
+
 const HONEYPOT_PORT = 2222;
 
 const honeypotServer = net.createServer((socket) => {
@@ -1168,6 +1243,45 @@ const honeypotServer = net.createServer((socket) => {
 
 honeypotServer.listen(HONEYPOT_PORT, () => {
     console.log(`[🕸️] Live High-Interaction Honeypot listening on TCP Port ${HONEYPOT_PORT}...`);
+});
+
+const PHANTOM_PORT = 8080;
+
+const DECEPTIVE_BANNERS = [
+    "SSH-2.0-OpenSSH_7.2p2 Ubuntu-4ubuntu2.8\r\n",
+    "220 Microsoft FTP Service\r\n",
+    "HTTP/1.1 200 OK\r\nServer: Apache/2.2.14 (Win32)\r\n\r\n",
+    "550 smtp.example.com ESMTP Postfix\r\n",
+    "220 ProFTPD 1.3.5 Server (ProFTPD Default Installation)\r\n",
+    "HTTP/1.1 401 Unauthorized\r\nWWW-Authenticate: Basic realm=\"HP LaserJet Printer\"\r\n\r\n"
+];
+
+const phantomServer = net.createServer((socket) => {
+    const attackerIp = socket.remoteAddress;
+    console.log(`\n[👻] PHANTOM STACK: Scanner probe detected from ${attackerIp}`);
+
+    setTimeout(() => {
+        const fakeBanner = DECEPTIVE_BANNERS[Math.floor(Math.random() * DECEPTIVE_BANNERS.length)];
+        console.log(`[👻] Morphing signature... Presenting fake identity: ${fakeBanner.trim().split('\n')[0]}`);
+
+        try {
+            socket.write(fakeBanner);
+
+            setTimeout(() => {
+                socket.destroy();
+            }, 15000);
+        } catch (e) {}
+    }, 2000);
+
+    socket.on('data', (data) => {
+        console.log(`[👻] Scanner sent probe data: ${data.toString('hex').substring(0,30)}...`);
+    });
+
+    socket.on('error', () => {});
+});
+
+phantomServer.listen(PHANTOM_PORT, () => {
+    console.log(`[👻] Live Phantom Stack (Anti-Fingerprinting) listening on TCP Port ${PHANTOM_PORT}...`);
 });
 
 process.on('SIGINT', () => {
