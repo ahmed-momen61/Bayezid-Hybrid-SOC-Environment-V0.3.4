@@ -9,15 +9,15 @@
 ![Vector-DB](https://img.shields.io/badge/Memory-pgvector-purple.svg)
 ![Encryption](https://img.shields.io/badge/Security-AES_256_CBC-yellow.svg)
 
-**Bayezid V0.3.4 is a revolutionary Cognitive SOC Orchestrator that transcends traditional SOAR boundaries. It is a self-evolving security ecosystem that thinks, remembers, mitigates, and acts with sub-millisecond precision.**
+**Bayezid V0.3.4 is a revolutionary Cognitive SOC Orchestrator that transcends traditional SOAR boundaries. It is a self-evolving security ecosystem that thinks, remembers, mitigates, shares intelligence, and acts with sub-millisecond precision.**
 
-By merging **Vector-Based Institutional Memory** with a **Multi-Agent AI Architecture** and an **Unsupervised Machine Learning Engine**, Bayezid transforms the SOC from a reactive ticketing system into an autonomous digital guardian. It features a unique hybrid engine that balances elite Cloud Intelligence with robust Local LLM fallbacks, ensuring that defense never sleeps—even during network outages.
+By merging **Vector-Based Institutional Memory**, **Encrypted Swarm Intelligence**, a **Multi-Agent AI Architecture**, and an **Unsupervised Machine Learning Engine**, Bayezid transforms the SOC from a reactive ticketing system into an autonomous digital guardian. It features a unique hybrid engine that balances elite Cloud Intelligence with robust Local LLM fallbacks, ensuring that defense never sleeps—even during network outages.
 
 ---
 
-## Core Value Propositions (The Trinity Expansion & The Intelligence Loop)
+## Core Value Propositions (The Intelligence Loop & Enterprise Defense)
 
-Bayezid is engineered to solve the "Big Three" SOC challenges: Alert Fatigue, Vendor Lock-in, and Cognitive Overhead, while introducing state-of-the-art offensive capabilities, autonomous remediation, and the newly integrated **Self-Learning Architecture**.
+Bayezid is engineered to solve the "Big Three" SOC challenges: Alert Fatigue, Vendor Lock-in, and Cognitive Overhead, while introducing state-of-the-art offensive capabilities, autonomous remediation, and a globally connected **Self-Learning Architecture**.
 
 * **Live Kinetic Filter (The Fast Shield):** A true live in-memory filter acting as the first line of defense. It features a **Deep Payload Normalizer** (Double URL Decoding & Null-Byte Stripping) and a **Flexible Regex Engine** to catch obfuscated SQLi/XSS.
 
@@ -25,19 +25,19 @@ Bayezid is engineered to solve the "Big Three" SOC challenges: Alert Fatigue, Ve
 
 * **The ML Sniper (4-Dimensional Isolation Forest):** A Python-based unsupervised learning microservice. It detects Zero-Day anomalies by analyzing statistical deviations across 4 dimensions: *Length, Symbol Density, Entropy, and Keyword Amplification (20x weighted penalty for lethal keywords like 'union', 'sleep', 'admin')*.
 
-* **The Warden Sandbox (Dynamic Analysis):** When the ML Sniper detects a statistical anomaly (Zero-Day), Bayezid doesn't guess. It spins up an isolated Docker container (`runWardenSandbox`) to dynamically execute the payload and observe its behavioral intent (e.g., Container Escape, Host Reconnaissance).
+* **The Warden Sandbox (Kubernetes Cloud-Native):** When the ML Sniper detects a statistical anomaly (Zero-Day), Bayezid doesn't guess. It orchestrates an **Ephemeral Pod within a Kubernetes Cluster** (`runWardenSandbox`) using `@kubernetes/client-node`. It dynamically executes the payload in a Zero-Egress isolated environment with sub-second boot times (`imagePullPolicy: 'IfNotPresent'`) and safely extracts behavioral logs for AI evaluation.
+
+* **Encrypted Swarm Intelligence (Federated Learning):** Bayezid nodes (e.g., across different ministries or branches) share Zero-Day mathematical features (not raw sensitive payloads) with each other. Using **RSA-2048 asymmetric cryptography** (`swarmCrypto.js`), nodes verify the signature of incoming intel, instantly retraining the local ML model (`/api/v1/ml/swarm_feedback`) to immunize the entire network against a threat seen by only one node.
+
+* **L3 OS Network Striker (The Guillotine):** Operates at the network layer (Windows Firewall/eBPF) to instantly drop malicious IPs (`kernelStriker.js`). It includes an autonomous TTL daemon that automatically expires blocks after 24 hours to prevent memory exhaustion and IP blocking bloat.
+
+* **The Oracle Agent (Reverse Engineering):** A dedicated Local AI (Qwen/Ollama) agent that deobfuscates intercepted payloads and translates raw bash/execution logs from the Kubernetes sandbox into human-readable intent analysis for Forensic RCA reports.
 
 * **The Intelligence Feedback Loop (Continuous Self-Learning):** Bayezid corrects its own ML engine. If the Warden Sandbox deems a statistically anomalous payload as "Safe" (False Positive), Bayezid automatically sends a feedback signal to the Python microservice. The ML Sniper retrains itself instantly, ensuring zero redundant false positives.
 
-* **Persistent AI Memory:** The ML Sniper utilizes `joblib` and `numpy` to save its evolving training dataset to disk (`bayezid_model.pkl` & `normal_traffic.npy`). Bayezid wakes up smarter every day, carrying over its learned intelligence across reboots.
-
 * **The Alchemist Agent (Adaptive Exploit Mutation):** Radically transforms Red Team operations by executing a live fuzzing loop directly on the target OS via `smartExec`. If blocked, it ingests stderr/stdout, mutates the payload dynamically, and re-fires until initial access is secured.
 
-* **The Cognitive Mirage Agent (High-Interaction Deception):** Upgrades the Honeypot to a psychological trap. A live TCP daemon (port 2222) acts as a **Strategic Censor**—stripping Bayezid's source code from the output—and injects highly contextual, dynamically hallucinated 'Honeytokens' tailored to the attacker's intent.
-
-* **Closed-Loop Auto-Remediation (Red-to-Blue Bridge):** Bridges offensive discovery with defensive mitigation. Upon detecting a vulnerability, the Blue Team autonomously classifies the threat, synthesizes executable mitigation code, and applies the patch directly.
-
-* **Hybrid Resilience (The Ultimate Failover):** The system prioritizes **Google Gemini 2.5 Flash** but features an instantaneous, transparent failover to **Local AI (Qwen 2.5 / Ollama)** if the cloud experiences latency or quota limits. The Cognitive flow never breaks.
+* **Closed-Loop Auto-Remediation (Red-to-Blue Bridge):** Bridges offensive discovery with defensive mitigation. Upon detecting a vulnerability, the Blue Team autonomously classifies the threat, synthesizes executable mitigation code, applies the patch, and summons the Red Team to mathematically verify the fix.
 
 ---
 
@@ -47,13 +47,15 @@ The system is built on a modular, event-driven architecture designed for high-th
 
 ### 1. The Blue Team Engine (Cognitive Defense)
 
-* **Stage 1 Triage (Kinetic Filter & ML Cache):** Drops non-malicious noise, strips obfuscation, and enforces Zero-CPU blocking for known malicious hashes.
+* **Stage 1 Triage (Kinetic Filter & ML Cache):** Drops non-malicious noise, strips obfuscation, and enforces Zero-CPU blocking.
 
-* **Stage 2 Heuristics & ML (The Sniper):** Identifies Zero-Day patterns via statistical Anomaly Detection (Isolation Forest).
+* **Stage 2 Heuristics & ML (The Sniper):** Identifies Zero-Day patterns via statistical Anomaly Detection.
 
-* **Stage 3 Dynamic Analysis (The Warden):** Executes unknown threats in an isolated Docker Sandbox.
+* **Stage 3 Cloud-Native Dynamic Analysis (The Warden):** Orchestrates Kubernetes pods to execute unknown threats safely.
 
-* **Stage 4 Intelligence Loop:** Corrects the ML model based on sandbox behavioral verdicts.
+* **Stage 4 Execution & Mitigation (OS Striker):** Drops the attacker IP at Layer 3 autonomously.
+
+* **Stage 5 Global Synchronization (The Swarm):** Signs and broadcasts the new threat metrics to the federated network.
 
 ### 2. The Red Team Swarm (Autonomous Offensive APT)
 
@@ -63,13 +65,9 @@ When toggled to **RED MODE**, Bayezid activates a proactive, fully autonomous of
 
 * **The Alchemist (Initial Access & Fuzzing):** Operates a live mutation loop to bypass EDRs/Execution Policies.
 
-* **The Phantom (Privilege Escalation):** An OS internals ghost. Capable of executing container breakouts and LotL tactics.
+* **The Phantom (Privilege Escalation):** An OS internals ghost. Capable of executing container breakouts.
 
 * **The Chameleon (Stealth):** Executes flawless, zero-code log wiping and track-clearing maneuvers.
-
-### 3. The Red-to-Blue Bridge (Adaptive Cyber Defense)
-
-* **Automated Regression Testing:** Post-remediation, the system automatically summons the Red Team to re-fire the exact mutated exploit payload against the patched endpoint, guaranteeing the mitigation is mathematically sound.
 
 ---
 
@@ -77,21 +75,28 @@ When toggled to **RED MODE**, Bayezid activates a proactive, fully autonomous of
 
 | Service | Responsibility | Technology |
 | --- | --- | --- |
-| **`server.js`** | Central Orchestrator, Fallback Routing, Sandboxing, Feedback Loop | Node.js / Express / Child Process |
-| **`ml_engine/main.py`** | The ML Sniper (Isolation Forest), Persistent Memory, Keyword Amplification | Python / FastAPI / Scikit-Learn |
-| **`kineticFilter.js`** | ML Hash Caching, Deep Normalization, Flexible Regex, Feature Extraction prep | JavaScript / Crypto |
-| **`aiService.js`** | Multi-Agent Logic, Smart Exec, Warden Sandbox, Failover logic (Cloud -> Local) | Gemini / Qwen / Docker |
-| **`memoryService.js`** | Vector Storage & Semantic Similarity Search | pgvector / Embeddings |
+| **`server.js`** | Central Orchestrator, Swarm Sync API, Mode Switcher | Node.js / Express |
+| **`aiService.js`** | Multi-Agent Logic, K8s Pod Orchestration (`runWardenSandbox`) | Gemini / Qwen / K8s Client |
+| **`ml_engine/main.py`** | The ML Sniper, Federated Learning receiver, Persistent Memory | Python / FastAPI / Scikit-Learn |
+| **`swarmCrypto.js`** | RSA-2048 key generation, Payload Signing, and Verification | Node.js Crypto |
+| **`kernelStriker.js`** | Autonomous L3 IP Blocking and TTL expiration daemon | OS Firewall Commands |
+| **`kineticFilter.js`** | ML Hash Caching, Deep Normalization, Flexible Regex | JavaScript |
+| **`oracleAgent.js`** | Payload deobfuscation and intent reverse-engineering | Local LLM |
+| **`threatGrapher.js`** | Generates dynamic Mermaid.js threat flowcharts for reports | JavaScript / Markdown |
 
 ---
 
 ### Prerequisites
 
 * **Node.js:** v20.x or higher.
+
 * **Python:** v3.10 or higher.
+
+* **Kubernetes:** A running K8s cluster (Minikube or Docker Desktop with K8s enabled).
+
 * **Database:** PostgreSQL with the `pgvector` extension.
-* **Docker:** Required for `Warden Sandbox` dynamic analysis.
-* **Local AI (Optional):** Ollama installed for the local fallback engine.
+
+* **Local AI (Optional):** Ollama installed for the local fallback and Oracle engine (`qwen2.5-coder:7b`).
 
 ---
 
@@ -99,16 +104,16 @@ When toggled to **RED MODE**, Bayezid activates a proactive, fully autonomous of
 
 You can test the core AI capabilities via these bridge endpoints using Postman:
 
-**1. Report Live Threat (The 3-Tier Sieve Test)**
+**1. Kubernetes Sandbox Evasion Test (Dynamic Execution)**
 
 * `POST /api/v1/bridge/report-vuln`
-* Body (SQLi Bypass Test): `{ "vulnName": "Stealthy SQLi", "evidence": "user_id=101%2527%2520%2520%2520%2520UnIoN%2520%2520%2520SeLeCt%2520%2520%25201%252C2%252C3%2500--%2520" }`
+* Body: `{ "vulnName": "K8s Evasion Test", "evidence": "echo 'Checking network...'; ping -c 3 8.8.8.8 || echo 'Network is isolated'; cat /etc/shadow 2>/dev/null; sleep 5", "spoofedIp": "192.168.1.155" }`
+* *(Watch Bayezid orchestrate the Pod, extract the logs, drop the IP via OS Striker, and generate the JIRA Forensic Report).*
 
-**2. The ML Keyword Trap (Anomaly Testing)**
+**2. Swarm Intelligence Simulation (Federated Defense)**
 
-* `POST /api/v1/bridge/report-vuln`
-* Body: `{ "vulnName": "ML Pure Keyword Trap", "evidence": "user_role=admin_level&timeout_action=sleep_now&task=waitfor_signal" }`
-* *(Watch the ML Sniper amplify the keywords, the Warden sandbox analyze it, and the Feedback Loop update the Python model).*
+* Run `node testSwarm.js` in a separate terminal.
+* *(Watch Bayezid reject forged intelligence and assimilate valid RSA-signed telemetry into its neural engine).*
 
 **3. Cognitive Risk Analysis & Virtual Patch Synthesis**
 
