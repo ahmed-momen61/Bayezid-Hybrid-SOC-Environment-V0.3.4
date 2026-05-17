@@ -307,7 +307,8 @@ const handleSecurityAlert = async(req, res) => {
             analysis: aiResponse,
             osint: osintData,
             cti: ctiData,
-            playbook_details: playbookResult || "Skipped",
+            playbook_details: playbookResult ? playbookResult.message : "Pending Review",
+            rollback_command: playbookResult ? playbookResult.rollbackCmd : "N/A",
             red_team_verification: redTeamVerdict,
             evidence_vault: "Encrypted & Hashed (SHA-256)"
         });

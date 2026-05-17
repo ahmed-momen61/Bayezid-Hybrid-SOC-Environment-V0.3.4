@@ -28,10 +28,22 @@ const withTimeout = (promise, ms) => {
 };
 
 
+const getDefaultInterface = async() => {
+    try {
+        const { stdout } = await execPromise("ip route show default | awk '/default/ {print $5}'");
+        const intf = stdout.trim();
+        return intf || 'eth0';
+    } catch (e) {
+        return 'eth0'; // Fallback
+    }
+};
+
 const initEBPF = async() => {
     if (platform !== 'linux') return;
     try {
-        console.log(`\n[⚙️] EBPF INIT: Attempting to forge and load xdp_striker.c...`);
+        defaultInterface = await getDefaultInterface();
+
+        console.log(`\n[⚙️] EBPF INIT: Forging xdp_striker.c and targeting NIC [${defaultInterface}]...`);
         const ebpfPath = path.join(__dirname, 'ebpf_module', 'xdp_striker.c');
         const objPath = path.join(__dirname, 'ebpf_module', 'xdp_striker.o');
 
@@ -42,10 +54,16 @@ const initEBPF = async() => {
 
         await execPromise(`clang -O2 -target bpf -c "${ebpfPath}" -o "${objPath}"`);
 
-        await execPromise(`sudo ip link set dev ${defaultInterface} xdpgeneric off`).catch(() => {}); // Clean state
+        await execPromise(`sudo ip link set dev ${defaultInterface} xdpgeneric off`).catch(() => {});
+        await execPromise(`sudo rm -f /sys/fs/bpf/bayezid_blocklist`).catch(() => {});
+
         await execPromise(`sudo ip link set dev ${defaultInterface} xdpgeneric obj "${objPath}" sec xdp_drop`);
 
-        console.log(`[🟢] EBPF GUILLOTINE LOADED on ${defaultInterface}. Zero-latency drop active.`);
+        await execPromise(`sudo bpftool map pin name blocklist /sys/fs/bpf/bayezid_blocklist`).catch((e) => {
+            console.log(`[⚠️] Map pinning bypassed (already pinned or unsupported).`);
+        });
+
+        console.log(`[🟢] EBPF GUILLOTINE LOADED on ${defaultInterface}. L3 Zero-latency drop active.`);
         ebpfInitialized = true;
     } catch (error) {
         console.error(`[⚠️] EBPF Initialization Failed. Falling back to native OS Firewall. Error:`, error.message);
@@ -88,7 +106,7 @@ const KernelStriker = {
         if (platform === 'linux') {
             if (ebpfInitialized) {
                 const hexIp = ipToHex(ip);
-                cmd = `sudo bpftool map update name blocklist key hex ${hexIp} value hex 01 00 00 00`;
+                cmd = `sudo bpftool map update pinned /sys/fs/bpf/bayezid_blocklist key hex ${hexIp} value hex 01 00 00 00`;
                 console.log(`[🔪] GUILLOTINE PROTOCOL: Dropping via eBPF Map Update`);
             } else {
                 cmd = `sudo iptables -A INPUT -s ${ip} -j DROP`;
@@ -120,7 +138,7 @@ const KernelStriker = {
         if (platform === 'linux') {
             if (ebpfInitialized) {
                 const hexIp = ipToHex(ip);
-                cmd = `sudo bpftool map delete name blocklist key hex ${hexIp}`;
+                cmd = `sudo bpftool map delete pinned /sys/fs/bpf/bayezid_blocklist key hex ${hexIp}`;
             } else {
                 cmd = `sudo iptables -D INPUT -s ${ip} -j DROP`;
             }

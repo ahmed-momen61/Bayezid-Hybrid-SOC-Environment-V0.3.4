@@ -1,4 +1,5 @@
 const net = require('net');
+const axios = require('axios');
 const KernelStriker = require('./kernelStriker');
 const {
     runWardenSandbox,
@@ -40,10 +41,23 @@ const getSmartResponse = async(prompt) => {
 };
 
 const startMatrixShell = (port = 2222) => {
+    const activeConnections = new Map();
     const server = net.createServer((socket) => {
         //const attackerIp = socket.remoteAddress.replace(/^.*:/, '');
         const attackerIp = "95.173.136.70";
+
+        if (KernelStriker.isIpBlocked(attackerIp)) {
+            socket.destroy();
+            return;
+        }
+
         console.log(`\n[🧛‍♂️] THE MATRIX: Neural link established with attacker ${attackerIp}`);
+
+        activeConnections.set(socket, {
+            lastDataTime: Date.now(),
+            totalDataReceived: 0,
+            mlSyncCounter: 0
+        });
 
         socket.write("Ubuntu 22.04.3 LTS (GNU/Linux 5.15.0-82-generic x86_64)\r\n\r\n");
         socket.write("Last login: Wed May 13 14:22:10 2026 from 8.8.8.8\r\n");
@@ -56,6 +70,18 @@ const startMatrixShell = (port = 2222) => {
         socket.on('data', async(data) => {
             const chunk = data.toString();
             inputBuffer += chunk;
+
+            const connState = activeConnections.get(socket);
+            connState.totalDataReceived += Buffer.byteLength(data);
+            const timeSinceLast = Date.now() - connState.lastDataTime;
+            connState.lastDataTime = Date.now();
+
+            if (connState.totalDataReceived > 50000 || (timeSinceLast < 100 && inputBuffer.length > 500)) {
+                console.log(`[🚨] INTEGRITY BREACH: ${attackerIp} is flooding the Tarpit. Engaging L3 Striker.`);
+                await KernelStriker.blockIp(attackerIp);
+                socket.destroy();
+                return;
+            }
 
             if (!inputBuffer.includes('\n') && !inputBuffer.includes('\r')) return;
 
@@ -70,6 +96,27 @@ const startMatrixShell = (port = 2222) => {
             console.log(`[👾] Matrix Hacker [${attackerIp}]: ${cmd}`);
             sessionHistory.push(cmd);
             commandCount++;
+
+            connState.mlSyncCounter++;
+            if (connState.mlSyncCounter >= 2 || /(wget|curl|nc|bash|sh)/i.test(cmd)) {
+                console.log(`[📡] MATRIX -> ML SYNC: Streaming attacker intent to ML Sniper...`);
+                try {
+                    const payloadContext = sessionHistory.join(';');
+                    const mlResponse = await axios.post('http://127.0.0.1:8000/api/v1/ml/predict', { payload: payloadContext }, { timeout: 2000 });
+
+                    if (mlResponse.data && mlResponse.data.is_malicious) {
+                        console.log(`[☠️] ML SNIPER VERDICT: Malicious intent detected early (Score: ${mlResponse.data.confidence}%).`);
+                        if (mlResponse.data.confidence > 90) {
+                            console.log(`[⚔️] TACTICAL DROP: Terminating connection based on high ML confidence.`);
+                            await dropHammer(socket, attackerIp, sessionHistory, "High ML Confidence Drop");
+                            return;
+                        }
+                    }
+                } catch (e) {
+                    console.log(`[-] ML Stream Sync Warning: Model offline or timeout.`);
+                }
+                connState.mlSyncCounter = 0;
+            }
 
             const lethalRegex = /(wget|curl|nc|bash|sh|python|perl|php|ruby|chmod|\.\/|base64)/i;
             if (lethalRegex.test(cmd)) {

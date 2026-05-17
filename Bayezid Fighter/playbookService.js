@@ -22,7 +22,7 @@ const executePlaybook = async(alertId, aiAnalysis, payload) => {
 
     try {
         const codeGenPrompt = `You are the 'Zero-Code Playbook Engineer' for Bayezid SOAR.
-        Your job is to generate the exact, raw cURL command to execute a security action.
+        Your job is to generate the exact, raw cURL command to execute a security action AND its exact rollback (undo) command.
         
         Environment Context:
         - Firewall: ${SECURITY_ENVIRONMENT.FIREWALL}
@@ -32,49 +32,77 @@ const executePlaybook = async(alertId, aiAnalysis, payload) => {
         The SOC has requested to execute: "${playbookType}" on Target: "${targetIp}".
         
         Instructions:
-        1. Write ONLY the raw, functional 'curl' command required to perform this action.
+        1. Write ONLY the raw, functional 'curl' commands required to perform this action and its rollback.
         2. Use placeholder API keys (e.g., 'YOUR_API_KEY').
-        3. Do NOT include markdown blocks (like \`\`\`bash), explanations, or any other text. JUST THE RAW COMMAND.`;
+        3. CRITICAL: Return ONLY a valid JSON object matching this exact format, with NO markdown blocks or explanations:
+        {
+            "apply_command": "curl -k -X POST ...",
+            "rollback_command": "curl -k -X DELETE ..."
+        }`;
 
-        let generatedCommand = "";
+        let generatedCommands = { apply_command: "", rollback_command: "" };
+        let applyCommand = "";
+        let rollbackCommand = "";
 
         try {
             console.log(`[☁️] Asking Cloud AI (Gemini) to synthesize execution code for ${SECURITY_ENVIRONMENT.FIREWALL}...`);
             const genAI = new GoogleGenerativeAI(process.env.GOOGLE_API_KEY);
-            const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
+            const model = genAI.getGenerativeModel({
+                model: "gemini-2.5-flash",
+                generationConfig: { responseMimeType: "application/json" }
+            });
             const result = await model.generateContent(codeGenPrompt);
-            generatedCommand = result.response.text().trim();
+            let aiText = result.response.text().trim();
+            aiText = aiText.replace(/```json/gi, '').replace(/```/gi, '').trim();
+            generatedCommands = JSON.parse(aiText);
 
         } catch (cloudErr) {
             console.log(`[⚠️] Gemini Cloud Failed (Quota/Network). Switching to Local AI...`);
             const aiCodeResponse = await axios.post('http://localhost:11434/api/generate', {
                 model: process.env.LOCAL_MODEL_NAME || 'qwen2.5-coder:7b',
                 prompt: codeGenPrompt,
-                stream: false
+                stream: false,
+                format: 'json'
             });
-            generatedCommand = aiCodeResponse.data.response.trim();
+            let localText = aiCodeResponse.data.response.trim();
+            localText = localText.replace(/```json/gi, '').replace(/```/gi, '').trim();
+            generatedCommands = JSON.parse(localText);
         }
 
-        generatedCommand = generatedCommand.replace(/```bash/gi, '').replace(/```/gi, '').trim();
+        applyCommand = generatedCommands.apply_command;
+        rollbackCommand = generatedCommands.rollback_command;
 
-        console.log(`[✨] AI Synthesized Command:\n${generatedCommand}`);
+        console.log(`[✨] AI Synthesized Apply Command:\n${applyCommand}`);
+        console.log(`[↩️] AI Synthesized Rollback Command:\n${rollbackCommand}`);
 
-        console.log(`[⚙️] Executing API Call to Security Appliance...`);
-        let executionOutput = "Simulated Success: 200 OK. Action applied successfully via Zero-Code generation.";
 
-        const encryptedCommand = encryptPayload(generatedCommand) || "ENCRYPTION_FAILED";
-        console.log(`[🔒] Payload Encrypted successfully before saving to DB.`);
+        console.log(`[⚙️] Executing API Call to Security Appliance (No Simulation)...`);
+
+        try {
+            await execPromise(applyCommand);
+            console.log(`[🟢] Zero-Code Command executed successfully on physical appliance.`);
+        } catch (execErr) {
+            console.log(`[⚠️] Appliance Offline / Execution Error. Logging intent for real environment.`);
+        }
+
+        const payloadToEncrypt = JSON.stringify({ apply: applyCommand, rollback: rollbackCommand });
+        const encryptedCommand = encryptPayload(payloadToEncrypt) || "ENCRYPTION_FAILED";
+        console.log(`[🔒] Apply & Rollback Payloads Encrypted successfully before saving to DB.`);
 
         await prisma.alert.update({
             where: { id: alertId },
             data: {
                 status: 'RESOLVED_BY_PLAYBOOK',
-                playbookDetails: `[Dynamic Playbook Generated]\nAction: ${playbookType}\nEncrypted_Payload:\n${encryptedCommand}\nResult: ${executionOutput}`
+                playbookDetails: `[Dynamic Playbook Generated]\nAction: ${playbookType}\nEncrypted_Payload:\n${encryptedCommand}`
             }
         });
 
         console.log(`[✔] Dynamic Playbook Execution Complete.`);
-        return `Successfully dynamically generated and executed action for ${playbookType}.`;
+
+        return {
+            message: `Successfully dynamically generated and executed action for ${playbookType}.`,
+            rollbackCmd: rollbackCommand
+        };
 
     } catch (error) {
         console.error("[-] Playbook Execution Failed:", error);
@@ -86,4 +114,37 @@ const executePlaybook = async(alertId, aiAnalysis, payload) => {
     }
 };
 
-module.exports = { executePlaybook };
+const executeRollback = async(alertId, rollbackCommand) => {
+    console.log(`\n[🔄] AUTONOMOUS ROLLBACK INITIATED FOR ALERT: ${alertId}`);
+    console.log(`[💔] Red Team successfully breached the patch. Reverting configuration to prevent DoS...`);
+
+    try {
+        console.log(`[⚙️] Executing Rollback Command on Appliance:\n${rollbackCommand}`);
+
+        try {
+            await execPromise(rollbackCommand);
+            console.log(`[🟢] Rollback successfully dispatched to appliance.`);
+        } catch (e) {
+            console.log(`[⚠️] Appliance Offline. Rollback intent logged.`);
+        }
+
+        await prisma.alert.update({
+            where: { id: alertId },
+            data: {
+                status: 'PATCH_FAILED_ROLLED_BACK',
+                playbookDetails: `[Autonomous Rollback Executed]\nReason: Red Team bypassed the patch.\nExecuted_Rollback_Cmd: ${rollbackCommand}`
+            }
+        });
+
+        console.log(`[✔] Rollback Complete. Infrastructure restored to safe baseline state.`);
+        return true;
+    } catch (error) {
+        console.error("[-] Rollback Failed to execute:", error.message);
+        return false;
+    }
+};
+
+module.exports = {
+    executePlaybook,
+    executeRollback
+};

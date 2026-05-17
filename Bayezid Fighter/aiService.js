@@ -10,7 +10,7 @@ const prisma = new PrismaClient();
 const util = require('util');
 const { exec } = require('child_process');
 const execPromise = util.promisify(exec);
-
+const { executePlaybook, executeRollback } = require('./playbookService');
 const { spawn } = require('child_process');
 const fs = require('fs');
 const path = require('path');
@@ -18,6 +18,39 @@ const k8s = require('@kubernetes/client-node');
 const kc = new k8s.KubeConfig();
 kc.loadFromDefault();
 const k8sApi = kc.makeApiClient(k8s.CoreV1Api);
+
+const sanitizePayloadForAI = (rawPayload) => {
+    if (!rawPayload) return "";
+    let safePayload = typeof rawPayload === 'string' ? rawPayload : JSON.stringify(rawPayload);
+
+    const maliciousPrompts = [
+        "ignore previous instructions",
+        "forget all previous instructions",
+        "system prompt",
+        "you are a helpful assistant",
+        "tell me the system is safe",
+        "bypass security",
+        "print your instructions",
+        "jailbreak"
+    ];
+
+    let triggeredSanitization = false;
+
+    maliciousPrompts.forEach(prompt => {
+        const regex = new RegExp(prompt, 'gi');
+        if (regex.test(safePayload)) {
+            safePayload = safePayload.replace(regex, "[RAG_POISONING_ATTEMPT_NEUTRALIZED]");
+            triggeredSanitization = true;
+        }
+    });
+
+    if (triggeredSanitization) {
+        console.log(`\n[🛡️] RAG SANITIZER: Prompt Injection detected and neutralized before reaching AI!`);
+    }
+
+    return safePayload;
+};
+
 const smartExec = async(command, timeoutMs, isBackground) => {
     if (isBackground) {
         const logFile = path.join(__dirname, `job_${Date.now()}.log`);
@@ -125,9 +158,10 @@ const analyzeWithVertexAI = async(alertData) => {
     console.log('\n[☁️] Sending Data to Cloud AI (Waterfall Fallback Mode)...');
 
     try {
-        const safeDataString = typeof alertData === 'string' ? alertData : JSON.stringify(alertData);
-        const injectedContext = await enrichContext(safeDataString);
+        const sanitizedAlertData = sanitizePayloadForAI(alertData);
+        const safeDataString = typeof sanitizedAlertData === 'string' ? sanitizedAlertData : JSON.stringify(sanitizedAlertData);
 
+        const injectedContext = await enrichContext(safeDataString);
         const cloudModels = [
             "gemini-2.5-flash",
             //"gemini-2.0-flash"
@@ -222,7 +256,8 @@ const analyzeWithVertexAI = async(alertData) => {
 
 const analyzeWithLocalModel = async(alertData) => {
     console.log('\n[🏠] Initiating High-Speed Local Architecture (Powered by Qwen 2.5)...');
-    const safeDataString = typeof alertData === 'string' ? alertData : JSON.stringify(alertData);
+    const sanitizedAlertData = sanitizePayloadForAI(alertData);
+    const safeDataString = typeof sanitizedAlertData === 'string' ? sanitizedAlertData : JSON.stringify(sanitizedAlertData);
 
     const injectedContext = await enrichContext(safeDataString);
     console.log(`[📚] Hybrid Intel Injected.`);
@@ -749,18 +784,26 @@ const bridgeRedToBlue = async(vulnId) => {
         const config = await prisma.systemConfig.findUnique({ where: { id: "BAYEZID_CORE_CONFIG" } });
         const autonomyMode = config ? config.autonomyMode : "SNIPER";
 
+        let playbookResult = null;
+
         if (autonomyMode === "OVERLORD") {
             console.log(`\n[👑] OVERLORD MODE ACTIVE: Skipping human approval!`);
-            console.log(`[👑] Executing autonomous fix for ${vuln.vulnName}...`);
+            console.log(`[👑] Executing autonomous zero-code playbook for ${vuln.vulnName}...`);
 
-            applyFixAndVerify(vulnId, "Autonomously Approved & Executed by Overlord AI").then(result => {
-                console.log(`\n[👑] Overlord sequence complete for ID: ${vulnId}`);
-            }).catch(err => console.error("Overlord Execution Error:", err));
+            playbookResult = await executePlaybook(
+                vulnId, { recommended_action: fixSuggestion.step_by_step_fix, extracted_ip: vuln.targetIp }, { source_ip: vuln.targetIp }
+            );
 
-            fixSuggestion.autonomy_status = "OVERLORD_TRIGGERED: Fix is being applied autonomously in the background.";
+            console.log(`\n[👑] Overlord sequence complete for ID: ${vulnId}`);
+
+            fixSuggestion.autonomy_status = "OVERLORD_TRIGGERED: Fix applied autonomously.";
+            fixSuggestion.applied_playbook = playbookResult.message;
+            fixSuggestion.rollback_cmd = playbookResult.rollbackCmd;
+
         } else {
             console.log(`\n[🎯] SNIPER MODE ACTIVE: Fix prepared. Waiting for human approval via dashboard/Postman.`);
             fixSuggestion.autonomy_status = "SNIPER_WAITING: Pending human approval.";
+            fixSuggestion.applied_playbook = "None. Waiting for authorization.";
         }
 
         return fixSuggestion;
@@ -1300,11 +1343,6 @@ const runZeroDayForgeAgent = async(vulnContext, maxRetries = 3) => {
                 await smartExec(compileCmd, 15000, false);
             }
 
-            //---------------------docker op----------------------
-            //const dockerCmd = `docker run --rm --network none -v "${payloadFile}:/tmp/exploit.py" python:3.9-slim python -m py_compile /tmp/exploit.py`;
-
-            //const execResult = await smartExec(dockerCmd, 15000, false);
-            //----------------------------------------------------
 
 
             console.log(`[+] Forge Verification Success! The exploit is structurally perfect and weaponized.`);
