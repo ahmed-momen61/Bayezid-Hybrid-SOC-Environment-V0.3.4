@@ -4,6 +4,27 @@ const { GoogleGenerativeAI } = require('@google/generative-ai');
 
 const genAI = new GoogleGenerativeAI(process.env.GOOGLE_API_KEY);
 
+const { IndexFlatL2 } = require('faiss-node');
+const { createClient } = require('redis');
+
+const redisClient = createClient({ url: process.env.REDIS_URL || 'redis://localhost:6379' });
+redisClient.on('error', (err) => console.error('[-] Redis Live-Bus Error:', err));
+redisClient.connect().then(() => console.log(`[⚡] Live-Stream Memory Bus (Redis) Active.`));
+
+const dimension = 768;
+const faissIndex = new IndexFlatL2(dimension);
+const memoryRegistry = new Map();
+let faissCounter = 0;
+
+const publishLiveEvent = async(channel, eventType, payload) => {
+    try {
+        const message = JSON.stringify({ type: eventType, timestamp: Date.now(), data: payload });
+        await redisClient.publish(channel, message);
+    } catch (e) {
+        console.error("[-] Redis Publish Error:", e.message);
+    }
+};
+
 const generateEmbedding = async(text) => {
     try {
         const model = genAI.getGenerativeModel({ model: "gemini-embedding-2" });
@@ -27,31 +48,26 @@ const generateEmbedding = async(text) => {
 };
 
 const findSimilarIncidents = async(logData) => {
-    console.log(`[🧠] Searching Institutional Memory for similar attack patterns...`);
+    console.log(`[🧠] Searching In-Memory FAISS Cache for similar attack patterns...`);
     const vector = await generateEmbedding(logData);
 
-    if (!vector || !Array.isArray(vector)) return null;
-
-    const vectorString = `[${vector.join(',')}]`;
+    if (!vector || !Array.isArray(vector) || faissIndex.ntotal() === 0) return null;
 
     try {
-        const similarAlerts = await prisma.$queryRawUnsafe(`
-            SELECT id, "threatType", "status", 
-            1 - (embedding <=> '${vectorString}'::vector) as similarity
-            FROM "Alert"
-            WHERE embedding IS NOT NULL
-            ORDER BY embedding <=> '${vectorString}'::vector
-            LIMIT 1;
-        `);
+        const results = faissIndex.search(vector, 1);
 
-        if (similarAlerts && similarAlerts.length > 0) {
-            if (similarAlerts[0].similarity > 0.80) {
-                return similarAlerts[0];
+        if (results && results.distances && results.distances.length > 0) {
+            const distance = results.distances[0];
+            const similarity = Math.max(0, 1 - (distance / 100));
+
+            if (similarity >= 0.85) {
+                const matchedId = results.labels[0];
+                return memoryRegistry.get(matchedId);
             }
         }
         return null;
     } catch (error) {
-        console.error("[-] Vector Search Error:", error.message);
+        console.error("[-] FAISS Search Error:", error.message);
         return null;
     }
 };
@@ -60,18 +76,18 @@ const saveIncidentToMemory = async(alertId, logData) => {
     const vector = await generateEmbedding(logData);
     if (!vector) return;
 
-    const vectorString = `[${vector.join(',')}]`;
-
     try {
-        await prisma.$executeRawUnsafe(`
-            UPDATE "Alert" 
-            SET embedding = '${vectorString}'::vector 
-            WHERE id = '${alertId}';
-        `);
-        console.log(`[💾] Alert ${alertId} etched into Bayezid's neural memory.`);
+        faissIndex.add(vector);
+        memoryRegistry.set(faissCounter, { id: alertId, payload: logData });
+        faissCounter++;
+
+        console.log(`[💾] Alert ${alertId} embedded into FAISS Semantic Cache (Zero I/O Latency).`);
+
+        await publishLiveEvent('bayezid_tactical_feed', 'NEW_THREAT_EMBEDDED', { alertId, logData });
+
     } catch (error) {
-        console.error("[-] Memory Save Error:", error.message);
+        console.error("[-] Memory/FAISS Cache Error:", error.message);
     }
 };
 
-module.exports = { findSimilarIncidents, saveIncidentToMemory };
+module.exports = { findSimilarIncidents, saveIncidentToMemory, publishLiveEvent, redisClient };

@@ -19,6 +19,18 @@ const itsmService = require('./itsmService');
 const { analyzeLogFastLive, injectSwarmRule } = require('./kineticFilter');
 const KernelStriker = require('./kernelStriker');
 const WargamingEngine = require('./wargamingEngine');
+const { redisClient } = require('./memoryService');
+const swarmSubscriber = redisClient.duplicate();
+swarmSubscriber.connect().then(() => {
+    swarmSubscriber.subscribe('bayezid_tactical_feed', (message) => {
+        try {
+            const event = JSON.parse(message);
+            if (event.type === 'NEW_THREAT_EMBEDDED') {
+                console.log(`[📡] AGENT SWARM ALERT: New tactical context ingested via Redis Pub/Sub for Alert ${event.data.alertId}`);
+            }
+        } catch (e) {}
+    });
+});
 KernelStriker.startTtlDaemon();
 const ThreatGrapher = require('./threatGrapher');
 const OracleReverser = require('./oracleAgent');
